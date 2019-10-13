@@ -22,7 +22,7 @@ Overview
 
 Using the notebooks in this repository assumes a certain file structure:
 
-```
+```.
 | project/
 | ├──models/
 | ├──subjects/
