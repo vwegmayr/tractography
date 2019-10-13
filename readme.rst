@@ -25,16 +25,16 @@ Using the notebooks in this repository assumes a certain file structure:
 | project/
 | ├──models/
 | ├──subjects/
-| ├  └──992774/
-| ├     ├──tracts/
-| ├     ├──resampled_fibers/
-| ├     ├──predicted_fibers/
-| ├     ├──samples/
-| ├     ├──seeds/
-| ├     └──fod.nii.gz
+| |  └──992774/
+| |     ├──tracts/
+| |     ├──resampled_fibers/
+| |     ├──predicted_fibers/
+| |     ├──samples/
+| |     ├──seeds/
+| |     └──fod.nii.gz
 | ├──entrack/
-| ├  ├──inference_t.ipynb
-| ├  └──training_conditional_t.ipynb
+| |  ├──inference_t.ipynb
+| |  └──training_conditional_t.ipynb
 | ├──fiber_resampling.ipynb
 | ├──generate_conditional_samples_t.ipynb
 | └──trk2seeds.ipynb
