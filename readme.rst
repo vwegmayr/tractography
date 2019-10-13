@@ -8,7 +8,7 @@ Data-Driven Tractography
 .. _`trk2seeds.ipynb`: trk2seeds.ipynb
 
 .. _`HCP project`: `https://db.humanconnectome.org`
-.. _`TractSeg`: `https://zenodo.org/record/1477956#.XaN1YdszafZ`
+.. _TractSeg: `https://zenodo.org/record/1477956#.XaN1YdszafZ`
 
 **Keywords**: Diffusion-Weighted MRI, Fiber Tracking, Machine Learning, Brain
 
@@ -52,9 +52,9 @@ subjects/
 This is the data folder comprising DWI data, training fibers, and their
 processed forms.
 Specifically, we use T1 and DWI data from the `HCP project`_, and reference
-fibers from `TractSeg`_.
+fibers from TractSeg_.
 
-* **tracts/** Raw fiber bundles (.trk), downloaded from `TractSeg`_.
+* **tracts/** Raw fiber bundles (.trk), downloaded from TractSeg_.
 * **resampled_fibers/** Fibers with data (.trk), interpolated by `fiber_resampling.ipynb`_
 * **predicted_fibers/** Fibers (.trk), predicted by `inference_t.ipynb`_.
 * **samples/** Collections of (vin, D, vout) samples (.npz), produced by `generate_conditional_samples_t.ipynb`_.
