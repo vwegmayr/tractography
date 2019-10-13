@@ -33,7 +33,7 @@ Using the notebooks in this repository assumes a certain file structure:
 | |     ├──seeds/
 | |     └──fod.nii.gz
 | ├──entrack/
-| |  ├──inference_t.ipynb_
+| |  ├──`inference_t.ipynb`_
 | |  └──training_conditional_t.ipynb_
 | ├──fiber_resampling.ipynb_
 | ├──generate_conditional_samples_t.ipynb_
