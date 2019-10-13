@@ -22,6 +22,7 @@ Overview
 
 Using the notebooks in this repository assumes a certain file structure:
 
+```
 | project/
 | ├──models/
 | ├──subjects/
@@ -38,6 +39,7 @@ Using the notebooks in this repository assumes a certain file structure:
 | ├──fiber_resampling.ipynb
 | ├──generate_conditional_samples_t.ipynb
 | └──trk2seeds.ipynb
+```
 
 The file system is described shortly, for more details please refer to the
 individual files.
