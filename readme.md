@@ -30,8 +30,8 @@ project/
 |     ├──seeds/
 |     └──fod.nii.gz
 ├──entrack/
-|  ├──[inference_t.ipynb]
-|  └──[training_conditional_t.ipynb]
+|  ├──inference_t.ipynb
+|  └──training_conditional_t.ipynb
 ├──fiber_resampling.ipynb
 ├──generate_conditional_samples_t.ipynb
 └──trk2seeds.ipynb
@@ -68,7 +68,7 @@ tangent, curvature, and torsion.
 
 ### [generate_conditional_samples_t.ipynb]
 Notebook which defines the generation of samples
-(vin, D, vout) for learning the conditional
+$(vin, D, v_{out})$ for learning the conditional
 distribution p((vin| D, vout).
 
 ### [trk2seeds.ipynb]
