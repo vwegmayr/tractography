@@ -7,8 +7,8 @@ Data-Driven Tractography
 .. _`generate_conditional_samples_t.ipynb`: generate_conditional_samples_t.ipynb
 .. _`trk2seeds.ipynb`: trk2seeds.ipynb
 
-.. _`HCP project` https://db.humanconnectome.org
-.. _`TractSeg` https://zenodo.org/record/1477956#.XaN1YdszafZ
+.. _`HCP project`: `https://db.humanconnectome.org`
+.. _`TractSeg`: `https://zenodo.org/record/1477956#.XaN1YdszafZ`
 
 **Keywords**: Diffusion-Weighted MRI, Fiber Tracking, Machine Learning, Brain
 
@@ -64,7 +64,7 @@ entrack/
 --------
 Folder for a specific model class, in this case Entrack. It defines how its
 models are trained (`training_conditional_t.ipynb`_), and how they are used to
-predict fibers (`training_conditional_t.ipynb`_).
+predict fibers (`inference_t.ipynb`_).
 
 `fiber_resampling.ipynb`_
 -------------------------
