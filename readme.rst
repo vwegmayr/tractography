@@ -1,7 +1,7 @@
 Data-Driven Tractography
 ========================
 
-.. _`inference_t.ipynb`: entrack/inference_t.ipynb
+.. _inference_t.ipynb: entrack/inference_t.ipynb
 .. _`training_conditional_t.ipynb`: entrack/training_conditional_t.ipynb 
 .. _`fiber_resampling.ipynb`: fiber_resampling.ipynb
 .. _`generate_conditional_samples_t.ipynb`: generate_conditional_samples_t.ipynb
