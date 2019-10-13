@@ -59,21 +59,18 @@ fibers from [TractSeg].
 
 ### entrack/
 Folder for a specific model class, in this case Entrack. It defines how its
-models are trained ([t]raining_conditional_t.ipynb]), and how they are used to
+models are trained ([training_conditional_t.ipynb]), and how they are used to
 predict fibers ([inference_t.ipynb]).
 
-fiber_resampling.ipynb_
--------------------------
+### [fiber_resampling.ipynb]
 Notebook to resample fibers, and calculate local fiber geometry data, such as
 tangent, curvature, and torsion.
 
-generate_conditional_samples_t.ipynb_
----------------------------------------
+### [generate_conditional_samples_t.ipynb]
 Notebook which defines the generation of samples
 (vin, D, vout) for learning the conditional
 distribution p((vin| D, vout).
 
-trk2seeds.ipynb_
-------------------
+### [trk2seeds.ipynb]
 Small utility notebook to convert the fiber endpoints in a .trk file to seed 
 coordinates (.npy).
