@@ -68,7 +68,7 @@ tangent, curvature, and torsion.
 
 ### [generate_conditional_samples_t.ipynb]
 Notebook which defines the generation of samples
-$(vin, D, v_{out})$ for learning the conditional
+$`(vin, D, v_{out})`$ for learning the conditional
 distribution p((vin| D, vout).
 
 ### [trk2seeds.ipynb]
