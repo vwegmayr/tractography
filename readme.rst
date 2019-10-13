@@ -64,7 +64,7 @@ entrack/
 --------
 Folder for a specific model class, in this case Entrack. It defines how its
 models are trained (`training_conditional_t.ipynb`_), and how they are used to
-predict fibers (`inference_t.ipynb`_).
+predict fibers (inference_t.ipynb_).
 
 `fiber_resampling.ipynb`_
 -------------------------
