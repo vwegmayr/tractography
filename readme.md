@@ -69,7 +69,7 @@ tangent, curvature, and torsion.
 ### [generate_conditional_samples_t.ipynb]
 Notebook which defines the generation of samples
 $`(v_{in}, \mathbf{D}, v_{out})`$ for learning the conditional
-distribution p((vin| D, vout).
+distribution $`p(v_{out} \mid \mathbf{D}, v_{in})`$.
 
 ### [trk2seeds.ipynb]
 Small utility notebook to convert the fiber endpoints in a .trk file to seed 
