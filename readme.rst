@@ -2,13 +2,13 @@ Data-Driven Tractography
 ========================
 
 .. _inference_t.ipynb: entrack/inference_t.ipynb
-.. _`training_conditional_t.ipynb`: entrack/training_conditional_t.ipynb 
-.. _`fiber_resampling.ipynb`: fiber_resampling.ipynb
-.. _`generate_conditional_samples_t.ipynb`: generate_conditional_samples_t.ipynb
-.. _`trk2seeds.ipynb`: trk2seeds.ipynb
+.. _training_conditional_t.ipynb: entrack/training_conditional_t.ipynb 
+.. _fiber_resampling.ipynb: fiber_resampling.ipynb
+.. _generate_conditional_samples_t.ipynb: generate_conditional_samples_t.ipynb
+.. _trk2seeds.ipynb: trk2seeds.ipynb
 
-.. _`HCP project`: `https://db.humanconnectome.org`
-.. _TractSeg: `https://zenodo.org/record/1477956#.XaN1YdszafZ`
+.. _HCP project: https://db.humanconnectome.org
+.. _TractSeg: https://zenodo.org/record/1477956#.XaN1YdszafZ
 
 **Keywords**: Diffusion-Weighted MRI, Fiber Tracking, Machine Learning, Brain
 
@@ -33,11 +33,11 @@ Using the notebooks in this repository assumes a certain file structure:
 | |     ├──seeds/
 | |     └──fod.nii.gz
 | ├──entrack/
-| |  ├──`inference_t.ipynb`_
-| |  └──`training_conditional_t.ipynb`_
-| ├──`fiber_resampling.ipynb`_
-| ├──`generate_conditional_samples_t.ipynb`_
-| └──`trk2seeds.ipynb`_
+| |  ├──inference_t.ipynb_
+| |  └──training_conditional_t.ipynb_
+| ├──fiber_resampling.ipynb_
+| ├──generate_conditional_samples_t.ipynb_
+| └──trk2seeds.ipynb_
 
 The file system is described shortly, for more details please refer to the
 individual files.
