@@ -51,7 +51,7 @@ subjects/
 ---------
 This is the data folder comprising DWI data, training fibers, and their
 processed forms.
-Specifically, we use T1 and DWI data from the HCP project_, and reference
+Specifically, we use T1 and DWI data from the `HCP project`_, and reference
 fibers from TractSeg_.
 
 * **tracts/** Raw fiber bundles (.trk), downloaded from TractSeg_.
