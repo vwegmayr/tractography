@@ -1,56 +1,72 @@
 #!/bin/bash
 
-baseurl="http://www.tractometer.org/downloads/downloads/"
+# Usage: ./get_ismrm_data.sh version
+# where version is one of (basic, rpe, gt).
+#
+# This script will create the folder subjects/ismrm_$version.
+#
+# The folder contains the respective version of the Tractometer diffusion data:
+# basic: image includes noise and artefacts
+# rpe: basic + reversed-phase-encoded (rpe) b0 image, for distortion correction
+# gt: ground truth image without noise and artefacts 
 
+baseurl="http://www.tractometer.org/downloads/downloads/"
+dir="subjects/ismrm_$1"
 mkdir -p "subjects"
 
 # Basic ISMRM ##################################################################
 
-folder="ISMRM_2015_Tracto_challenge_data"
-dir="subjects/ismrm_basic"
+if [ $1 = "basic" ]
+then
+    folder="ISMRM_2015_Tracto_challenge_data"
 
-wget "$baseurl${folder}_v1_1.zip"
+    wget "$baseurl${folder}_v1_1.zip"
 
-unzip "${folder}_v1_1.zip"
+    unzip "${folder}_v1_1.zip"
 
-mv $folder $dir
+    mv $folder $dir
 
-rm "${folder}_v1_1.zip"
+    rm "${folder}_v1_1.zip"
 
-mv "${dir}/Diffusion.bvals" "${dir}/bvals"
-mv "${dir}/Diffusion.bvecs" "${dir}/bvecs"
-mv "${dir}/Diffusion.nii.gz" "${dir}/data.nii.gz"
+    mv "${dir}/Diffusion.bvals" "${dir}/bvals"
+    mv "${dir}/Diffusion.bvecs" "${dir}/bvecs"
+    mv "${dir}/Diffusion.nii.gz" "${dir}/data.nii.gz"
+fi
 
 # Reverse Phase ISMRM ##########################################################
 
-folder=ISMRM_2015_Tracto_challenge_data_with_reversed_phase
-dir="subjects/ismrm_rpe"
+if [ $1 = "rpe" ]
+then
+    folder=ISMRM_2015_Tracto_challenge_data_with_reversed_phase
 
-wget "$baseurl${folder}_v1_0.zip"
+    wget "$baseurl${folder}_v1_0.zip"
 
-unzip "${folder}_v1_0.zip"
+    unzip "${folder}_v1_0.zip"
 
-mv $folder $dir
+    mv $folder $dir
 
-rm "${folder}_v1_0.zip"
+    rm "${folder}_v1_0.zip"
 
-mv "${dir}/Diffusion_WITH_REVERSEPHASE.bvals" "${dir}/bvals"
-mv "${dir}/Diffusion_WITH_REVERSEPHASE.bvecs" "${dir}/bvecs"
-mv "${dir}/Diffusion_WITH_REVERSEPHASE.nii.gz" "${dir}/data.nii.gz"
+    mv "${dir}/Diffusion_WITH_REVERSEPHASE.bvals" "${dir}/bvals"
+    mv "${dir}/Diffusion_WITH_REVERSEPHASE.bvecs" "${dir}/bvecs"
+    mv "${dir}/Diffusion_WITH_REVERSEPHASE.nii.gz" "${dir}/data.nii.gz"
+fi
 
 # Ground Truth ISMRM ###########################################################
 
-folder=ISMRM_2015_Tracto_challenge_ground_truth_dwi_v2
-dir="subjects/ismrm_gt"
+if [ $1 = "gt" ]
+then
+    folder=ISMRM_2015_Tracto_challenge_ground_truth_dwi_v2
 
-wget "${baseurl}ismrm_challenge_2015/${folder}.zip"
+    wget "${baseurl}ismrm_challenge_2015/${folder}.zip"
 
-unzip "${folder}.zip"
+    unzip "${folder}.zip"
 
-mv $folder $dir
+    mv $folder $dir
 
-rm "${folder}.zip"
+    rm "${folder}.zip"
 
-mv "${dir}/NoArtifacts_Relaxation.bvals" "${dir}/bvals"
-mv "${dir}/NoArtifacts_Relaxation.bvecs" "${dir}/bvecs"
-mv "${dir}/NoArtifacts_Relaxation.nii.gz" "${dir}/data.nii.gz"
+    mv "${dir}/NoArtifacts_Relaxation.bvals" "${dir}/bvals"
+    mv "${dir}/NoArtifacts_Relaxation.bvecs" "${dir}/bvecs"
+    mv "${dir}/NoArtifacts_Relaxation.nii.gz" "${dir}/data.nii.gz"
+fi
