@@ -30,19 +30,19 @@ then
     -rpe_none \
     -pe_dir PA \
     -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
-    -export_grad_fsl "${dir}/bvecs_preproc" "${dir}/bvals_preproc" \
+    -export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
     -eddy_options " --slm=linear" \
     -nthreads 20 &&
 
     dwi2mask \
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/dwi_brain_mask.nii.gz" \
-    -fslgrad "${dir}/bvecs_preproc" "${dir}/bvals_preproc" &&
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dwi2tensor \
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/tensor.nii.gz" \
-    -fslgrad "${dir}/bvecs_preproc" "${dir}/bvals_preproc" \
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
     -mask "${dir}/dwi_brain_mask.nii.gz" \
     -nthreads 20 &&
 
@@ -59,7 +59,7 @@ then
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     "${dir}/data_input.nii.gz" \
-    -fslgrad "${dir}/bvecs_preproc" "${dir}/bvals_preproc"
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
 fi
 
 # Ground Truth ISMRM ###########################################################
@@ -69,17 +69,17 @@ then
     dwigradcheck \
     "${dir}/data.nii.gz" \
     -fslgrad "${dir}/bvecs" "${dir}/bvals" \
-    -export_grad_fsl "${dir}/bvecs_check" "${dir}/bvals_check" &&
+    -export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dwi2mask \
     "${dir}/data.nii.gz" \
     "${dir}/dwi_brain_mask.nii.gz" \
-    -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" &&
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dwi2tensor \
     "${dir}/data.nii.gz" \
     "${dir}/tensor.nii.gz" \
-    -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
     -mask "${dir}/dwi_brain_mask.nii.gz" \
     -nthreads 20 &&
 
@@ -97,7 +97,7 @@ then
     "${dir}/data.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     "${dir}/data_input.nii.gz" \
-    -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check"
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
 fi
 
 # Reverse Phase ISMRM ##########################################################
@@ -135,19 +135,19 @@ then
     -pe_dir PA \
     -se_epi "${dir}/b0.nii.gz" \
     -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
-    -export_grad_fsl "${dir}/bvecs_preproc" "${dir}/bvals_preproc" \
+    -export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
     -eddy_options " --slm=linear" \
     -nthreads 20 &&
 
     dwi2mask \
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/dwi_brain_mask.nii.gz" \
-    -fslgrad "${dir}/bvecs_preproc" "${dir}/bvals_preproc" &&
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dwi2tensor \
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/tensor.nii.gz" \
-    -fslgrad "${dir}/bvecs_preproc" "${dir}/bvals_preproc" \
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
     -mask "${dir}/dwi_brain_mask.nii.gz" \
     -nthreads 20 &&
 
@@ -165,5 +165,5 @@ then
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     "${dir}/data_input.nii.gz" \
-    -fslgrad "${dir}/bvecs_preproc" "${dir}/bvals_preproc"
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
 fi

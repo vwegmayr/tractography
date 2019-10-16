@@ -28,17 +28,17 @@ dwiextract \
 "${dir}/data.nii.gz" \
 "${dir}/data_1k.nii.gz" \
 -fslgrad "${dir}/bvecs" "${dir}/bvals" \
--export_grad_fsl "${dir}/bvecs_1k" "${dir}/bvals_1k" \
+-export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
 -shells 0,1000 &&
 
 dwi2mask "${dir}/data_1k.nii.gz" \
 "${dir}/dwi_brain_mask.nii.gz" \
--fslgrad "${dir}/bvecs_1k" "${dir}/bvals_1k" &&
+-fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 dwi2tensor \
 "${dir}/data_1k.nii.gz" \
 "${dir}/tensor.nii.gz" \
--fslgrad "${dir}/bvecs_1k" "${dir}/bvals_1k" \
+-fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
 -mask "${dir}/dwi_brain_mask.nii.gz" \
 -nthreads 20 &&
 
@@ -56,4 +56,4 @@ dwinormalise \
 "${dir}/data_1k.nii.gz" \
 "${dir}/dwi_wm_mask.nii.gz" \
 "${dir}/data_input.nii.gz" \
--fslgrad "${dir}/bvecs_1k" "${dir}/bvals_1k"
+-fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
