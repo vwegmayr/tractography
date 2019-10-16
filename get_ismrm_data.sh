@@ -9,7 +9,11 @@ mkdir -p "subjects"
 folder="ISMRM_2015_Tracto_challenge_data"
 dir="subjects/ismrm_basic"
 
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
 wget "$baseurl${folder}_v1_1.zip"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+curl "$baseurl${folder}_v1_1.zip" -o ${folder}_v1_1.zip
+fi
 
 unzip "${folder}_v1_1.zip"
 
@@ -26,7 +30,11 @@ mv "${dir}/Diffusion.nii.gz" "${dir}/data.nii.gz"
 folder=ISMRM_2015_Tracto_challenge_data_with_reversed_phase
 dir="subjects/ismrm_rpe"
 
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
 wget "$baseurl${folder}_v1_0.zip"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+curl "$baseurl${folder}_v1_0.zip" -o ${folder}_v1_0.zip
+fi
 
 unzip "${folder}_v1_0.zip"
 
@@ -43,7 +51,11 @@ mv "${dir}/Diffusion_WITH_REVERSEPHASE.nii.gz" "${dir}/data.nii.gz"
 folder=ISMRM_2015_Tracto_challenge_ground_truth_dwi_v2
 dir="subjects/ismrm_gt"
 
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
 wget "${baseurl}ismrm_challenge_2015/${folder}.zip"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+curl "${baseurl}ismrm_challenge_2015/${folder}.zip" -o ${folder}.zip
+fi
 
 unzip "${folder}.zip"
 
