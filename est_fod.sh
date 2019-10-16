@@ -26,7 +26,7 @@ mtnormalise \
 "${dir}/fod_norm.nii.gz" \
 -mask "${dir}/dwi_brain_mask.nii.gz"
 
-if [ $dir =~ "ismrm" ]
+if [ $dir != "ismrm" ]
 then
     mrresize \
     "${dir}/fod_norm.nii.gz" \
