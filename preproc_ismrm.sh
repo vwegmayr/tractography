@@ -28,7 +28,7 @@ then
     "${dir}/data_denoise.nii.gz" \
     "${dir}/data_denoise_preproc.nii.gz" \
     -rpe_none \
-    -pe_dir PA \
+    -pe_dir AP \
     -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
     -export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
     -eddy_options " --slm=linear" \
@@ -132,7 +132,7 @@ then
     "${dir}/data_denoise_pe.nii.gz" \
     "${dir}/data_denoise_preproc.nii.gz" \
     -rpe_pair \
-    -pe_dir PA \
+    -pe_dir AP \
     -se_epi "${dir}/b0.nii.gz" \
     -fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
     -export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
