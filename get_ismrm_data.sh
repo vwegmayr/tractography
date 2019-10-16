@@ -20,7 +20,7 @@ if [ $1 = "basic" ]
 then
     folder="ISMRM_2015_Tracto_challenge_data"
 
-    wget "$baseurl${folder}_v1_1.zip"
+    curl "$baseurl${folder}_v1_1.zip" -o ${folder}_v1_1.zip
 
     unzip "${folder}_v1_1.zip"
 
@@ -39,7 +39,7 @@ if [ $1 = "rpe" ]
 then
     folder=ISMRM_2015_Tracto_challenge_data_with_reversed_phase
 
-    wget "$baseurl${folder}_v1_0.zip"
+    curl "$baseurl${folder}_v1_0.zip" -o ${folder}_v1_0.zip
 
     unzip "${folder}_v1_0.zip"
 
@@ -58,7 +58,7 @@ if [ $1 = "gt" ]
 then
     folder=ISMRM_2015_Tracto_challenge_ground_truth_dwi_v2
 
-    wget "${baseurl}ismrm_challenge_2015/${folder}.zip"
+    curl "${baseurl}ismrm_challenge_2015/${folder}.zip" -o ${folder}.zip
 
     unzip "${folder}.zip"
 
@@ -70,3 +70,4 @@ then
     mv "${dir}/NoArtifacts_Relaxation.bvecs" "${dir}/bvecs"
     mv "${dir}/NoArtifacts_Relaxation.nii.gz" "${dir}/data.nii.gz"
 fi
+
