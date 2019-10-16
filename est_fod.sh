@@ -25,3 +25,11 @@ mtnormalise \
 "${dir}/fod.nii.gz" \
 "${dir}/fod_norm.nii.gz" \
 -mask "${dir}/dwi_brain_mask.nii.gz"
+
+if [ $dir =~ "ismrm" ]
+then
+    mrresize \
+    "${dir}/fod_norm.nii.gz" \
+    "${dir}/fod_norm_125.nii.gz" \
+    -voxel 1.25
+fi
