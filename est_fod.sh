@@ -24,7 +24,12 @@ csd \
 mtnormalise \
 "${dir}/fod.nii.gz" \
 "${dir}/fod_norm.nii.gz" \
--mask "${dir}/dwi_brain_mask.nii.gz"
+-mask "${dir}/dwi_brain_mask.nii.gz" &&
+
+sh2peaks \
+"${dir}/fod_norm.nii.gz" \
+"${dir}/peaks.nii.gz" \
+-num 1 &&
 
 if [[ $dir =~ "ismrm" ]]
 then
