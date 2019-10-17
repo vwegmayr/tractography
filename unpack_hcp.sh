@@ -34,7 +34,7 @@ dwiextract \
 dwigradcheck \
 "${dir}/data_1k.nii.gz" \
 -fslgrad "${dir}/bvecs_1k" "${dir}/bvals_1k" \
--export_grad_fsl "${dir}/bvecs_input" "${dir}/bvecs_input" &&
+-export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 dwi2mask "${dir}/data_1k.nii.gz" \
 "${dir}/dwi_brain_mask.nii.gz" \
