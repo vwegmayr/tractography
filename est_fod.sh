@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Usage: ./est_fod subjectID
 # Example: ./est_fod 917255
