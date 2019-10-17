@@ -23,6 +23,8 @@ parser.add_argument("--weighted", action="store_true",
 
 args = parser.parse_args()
 
+assert args.keep >= 0.01
+
 bundles = []
 for trk_file in glob.glob(os.path.join(args.trk_dir, "*")):
     print("Loading {:15} ...".format(os.path.basename(trk_file)), end="\r")
@@ -64,10 +66,10 @@ tractogram = Tractogram(
 
 if args.weighted:
     save_path = os.path.join(args.trk_dir,
-        "merged_w{}.trk".format(100*args.keep))
+        "merged_w{}.trk".format(int(100*args.keep)))
 else:
     save_path = os.path.join(args.trk_dir,
-        "merged_{}.trk".format(100*args.keep))
+        "merged_{}.trk".format(int(100*args.keep)))
 
 print("Saving {}".format(save_path))
 
