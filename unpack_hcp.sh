@@ -23,18 +23,18 @@ rm "${dir}/grad_dev.nii.gz"
 
 rm -r $1
 
-dwigradcheck \
-"${dir}/data.nii.gz" \
--fslgrad "${dir}/bvecs" "${dir}/bvals" \
--export_grad_fsl "${dir}/bvecs_check" "${dir}/bvals_check" &&
-
 # Extract only b=0,1000 volumes
 dwiextract \
 "${dir}/data.nii.gz" \
 "${dir}/data_1k.nii.gz" \
--fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
--export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
+-fslgrad "${dir}/bvecs" "${dir}/bvals" \
+-export_grad_fsl "${dir}/bvecs_1k" "${dir}/bvals_1k" \
 -shells 0,1000 &&
+
+dwigradcheck \
+"${dir}/data_1k.nii.gz" \
+-fslgrad "${dir}/bvecs_1k" "${dir}/bvals_1k" \
+-export_grad_fsl "${dir}/bvecs_input" "${dir}/bvecs_input" &&
 
 dwi2mask "${dir}/data_1k.nii.gz" \
 "${dir}/dwi_brain_mask.nii.gz" \
