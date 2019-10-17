@@ -3,11 +3,17 @@
 # Usage: ./score.sh trkdir
 
 trkfile="${1}/fibers.trk"
+alignedfile="${1}/fibers_tm.trk"
 
-python "scoring/validate_tracts_space.py" $trkfile &&
+python "tractconverter/scripts/TractConverter.py" \
+-i  $trkfile \
+-o  $alignedfile \
+-a "scoring/scoring_data/masks/wm2mm.nii.gz" &&
+
+python "scoring/validate_tracts_space.py" $alignedfile &&
 
 python "scoring/scripts/score_tractogram.py" \
-$trkfile \
+$alignedfile \
 "scoring/scoring_data" \
 $1 \
 --save_full_vc \
