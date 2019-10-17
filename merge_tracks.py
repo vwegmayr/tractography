@@ -8,8 +8,10 @@ import nibabel as nib
 from nibabel.streamlines.tractogram import Tractogram
 
 parser = argparse.ArgumentParser(description="Merge trk files.\n"
-    "Merge several bundle trks with optional weighted subsampling.\n"
-    "WARNING: Does not perform any checks, e.g. whether fibers are aligned.")
+    "Merge several bundle trks with optional weighted subsampling.\n\n"
+    "WARNING: Does not perform any checks, e.g. whether fibers are aligned.\n\n"
+    "HCP whole brain ~ 1.600.000 fibers from 72 bundles\n"
+    "n_segments ~ 40 x n_fibers\n")
 
 parser.add_argument("trk_dir", help="Directory containing trk files.")
 
