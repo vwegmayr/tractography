@@ -59,7 +59,9 @@ then
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     "${dir}/data_input.nii.gz" \
-    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
+
+    rm -r "dwi"*"-tmp-"*
 fi
 
 # Ground Truth ISMRM ###########################################################
@@ -165,5 +167,7 @@ then
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     "${dir}/data_input.nii.gz" \
-    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
+
+    rm -r "dwi"*"-tmp-"*
 fi

@@ -24,12 +24,22 @@ csd \
 mtnormalise \
 "${dir}/fod.nii.gz" \
 "${dir}/fod_norm.nii.gz" \
--mask "${dir}/dwi_brain_mask.nii.gz"
+-mask "${dir}/dwi_brain_mask.nii.gz" &&
 
-if [ $dir != "ismrm" ]
+sh2peaks \
+"${dir}/fod_norm.nii.gz" \
+"${dir}/peaks.nii.gz" \
+-num 1 &&
+
+if [[ $dir =~ "ismrm" ]]
 then
     mrresize \
     "${dir}/fod_norm.nii.gz" \
     "${dir}/fod_norm_125.nii.gz" \
     -voxel 1.25
+
+    mrresize \
+    "${dir}/fod_norm.nii.gz" \
+    "${dir}/fod_norm_050.nii.gz" \
+    -voxel 0.5
 fi

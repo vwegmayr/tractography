@@ -23,11 +23,16 @@ rm "${dir}/grad_dev.nii.gz"
 
 rm -r $1
 
+dwigradcheck \
+"${dir}/data.nii.gz" \
+-fslgrad "${dir}/bvecs" "${dir}/bvals" \
+-export_grad_fsl "${dir}/bvecs_check" "${dir}/bvals_check" &&
+
 # Extract only b=0,1000 volumes
 dwiextract \
 "${dir}/data.nii.gz" \
 "${dir}/data_1k.nii.gz" \
--fslgrad "${dir}/bvecs" "${dir}/bvals" \
+-fslgrad "${dir}/bvecs_check" "${dir}/bvals_check" \
 -export_grad_fsl "${dir}/bvecs_input" "${dir}/bvals_input" \
 -shells 0,1000 &&
 
