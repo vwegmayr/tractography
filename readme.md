@@ -74,3 +74,26 @@ distribution $`p(v_{out} \mid \mathbf{D}, v_{in})`$.
 ### [trk2seeds.ipynb]
 Small utility notebook to convert the fiber endpoints in a .trk file to seed 
 coordinates (.npy).
+
+## Note about Coordinate Systems
+
+Throughout this project, we exclusively use the load/save functions from
+nipy.streamlines. For .trk files, they follow the TrackVis convention, that the
+origin of the *stored* fiber coordinates is the corner of the first voxel.
+
+Only upon load they are transformed to the NIfTI convention, such that the
+origin of the *loaded* fibers is the center of the first voxel. More precisely,
+half a voxel is subtracted from the stored coordinates.
+
+When saved, the fiber coordinates are changed back to the TrackVis convention,
+i.e. half a voxel is added to the loaded fiber coordinates.
+
+However, the Tractometer scoring tool uses the deprecated nibabel.trackvis.read,
+which does not shift the fiber coordinates. Instead, the Tractometer script adds
+half a voxel to the stored fiber coordinates, so it implicitly assumes that the
+stored fiber coordinates follow the NIfTI convention!
+
+Unfortunately, this does not comply with fibers loaded and saved by
+nibabel.streamlines.save, so we modified the Tractometer behavior at
+scoring/challenge_scoring/io/streamlines.py (line 99), and set the shift to 0.0
+instead of +0.5.
