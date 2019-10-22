@@ -28,7 +28,7 @@ assert args.keep >= 0.01
 
 bundles = []
 for i, trk_path in enumerate(glob.glob(os.path.join(args.trk_dir, "*.trk"))):
-    print("Loading {:15}".format(os.path.basename(trk_path)), end="\r")
+    print("Loading {:.<15}".format(os.path.basename(trk_path)), end="\r")
     trk_file = nib.streamlines.load(trk_path)
     bundles.append(trk_file.tractogram)
     if i == 0:

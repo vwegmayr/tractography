@@ -65,4 +65,13 @@ dwinormalise \
 "${dir}/data_1k.nii.gz" \
 "${dir}/dwi_wm_mask.nii.gz" \
 "${dir}/data_input.nii.gz" \
--fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
+-fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
+
+# Merge and subsample tracks ###################################################
+
+# TODO: Merge HCP trk files
+
+python merge_tracks.py \
+"${dir}/tracts" \
+--keep 0.02 \
+--weighted
