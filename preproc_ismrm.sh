@@ -66,7 +66,7 @@ then
     "${dir}/data_input.nii.gz" \
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
-    rm -r "dwi"*"-tmp-"* &&
+    rm -r "dwi"*"-tmp-"*
 fi
 
 # Ground Truth ISMRM ###########################################################
@@ -108,7 +108,7 @@ then
     "${dir}/data.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     "${dir}/data_input.nii.gz" \
-    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
+    -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input"
 fi
 
 # Reverse Phase ISMRM ##########################################################
@@ -182,7 +182,7 @@ then
     "${dir}/data_input.nii.gz" \
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
-    rm -r "dwi"*"-tmp-"* &&
+    rm -r "dwi"*"-tmp-"*
 fi
 
 # Same for all ISMRM versions ##################################################
@@ -208,4 +208,4 @@ mrresize \
 mrresize \
 "${dir}/all_rois.nii.gz" \
 "${dir}/all_rois_125.nii.gz" \
--voxel 1.25 &&
+-voxel 1.25
