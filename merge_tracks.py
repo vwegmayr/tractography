@@ -6,6 +6,7 @@ import numpy as np
 import nibabel as nib
 
 from nibabel.streamlines.tractogram import Tractogram
+from nibabel.streamlines.trk import TrkFile
 
 parser = argparse.ArgumentParser(description="Merge trk files.\n"
     "Merge several bundle trks with optional weighted subsampling.\n\n"
@@ -26,9 +27,12 @@ args = parser.parse_args()
 assert args.keep >= 0.01
 
 bundles = []
-for trk_file in glob.glob(os.path.join(args.trk_dir, "*.trk")):
-    print("Loading {:15}".format(os.path.basename(trk_file)), end="\r")
-    bundles.append(nib.streamlines.load(trk_file).tractogram)
+for i, trk_path in enumerate(glob.glob(os.path.join(args.trk_dir, "*.trk"))):
+    print("Loading {:15}".format(os.path.basename(trk_path)), end="\r")
+    trk_file = nib.streamlines.load(trk_path)
+    bundles.append(trk_file.tractogram)
+    if i == 0:
+        header = trk_file.header
 
 n_fibers = sum([len(b.streamlines) for b in bundles])
 n_bundles = len(bundles)
@@ -76,4 +80,4 @@ else:
 
 print("Saving {}".format(save_path))
 
-nib.streamlines.save(tractogram, save_path)
+TrkFile(tractogram, header).save(save_path)
