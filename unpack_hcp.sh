@@ -3,25 +3,46 @@
 # Usage: ./unpack_hcp.sh subjectID
 # Example: ./unpack_hcp.sh 917255
 #
-# Assumes you downloaded a file like "917255_3T_Diffusion_preproc.zip"
-# from https://db.humanconnectome.org to a folder named "hcp_zips".
+# Assumes you manually downloaded a file like "917255_3T_Diffusion_preproc.zip"
+# from https://db.humanconnectome.org to a folder named "hcp_zips". 
 # Accessing this data online requires only free registration.
 #
 # Additional Requirements:
 # MRtrix installation
 
-unzip "hcp_zips/${1}_3T_Diffusion_preproc.zip"
+trk_dir="HCP105_Zenodo_NewTrkFormat"
+trk_url="https://zenodo.org/record/1477956/files/${trk_dir}.zip?download=1"
+
+if [ ! -f "hcp_zips/hcp_trks.zip" ]
+then
+    echo "Downloading HCP trk files, this can take a while..."
+    curl $hcp_trk_url -o "hcp_zips/hcp_trks.zip"
+fi
+
+if [ ! -d "subjects" ]
+then
+    mkdir "subjects"
+fi
 
 dir="subjects/${1}"
 
-mkdir -p $dir
+if [ ! -d "${dir}" ]
+then
+    unzip "hcp_zips/hcp_trks.zip" "${trk_dir}/${1}/*" -d "subjects"
+    mv "subjects/${trk_dir}/${1}" $dir
+    rmdir "subjects/${trk_dir}"
+fi
 
-mv "${1}/T1w/Diffusion/"* $dir
+unzip "hcp_zips/${1}_3T_Diffusion_preproc.zip" &&
 
-rm -r "${dir}/eddylogs"
-rm "${dir}/grad_dev.nii.gz"
+mv "${1}/T1w/Diffusion/"* $dir &&
 
-rm -r $1
+rm -r "${dir}/eddylogs" &&
+rm "${dir}/grad_dev.nii.gz" &&
+
+rm -r $1 &&
+
+# Perform basic preprocessing ##################################################
 
 # Extract only b=0,1000 volumes
 dwiextract \
