@@ -71,3 +71,12 @@ then
     mv "${dir}/NoArtifacts_Relaxation.nii.gz" "${dir}/data.nii.gz"
 fi
 
+if [ ! -d "scoring/scoring_data" ]
+then
+    tar_file="scoring_data_tractography_challenge.tar.gz"
+    mkdir "scoring"
+    curl "http://www.tractometer.org/downloads/downloads/${tar_file}" \
+    -o "scoring/${tar_file}"
+    tar -xzf "scoring/${tar_file}" -C "scoring"
+    rm "scoring/${tar_file}"
+fi
