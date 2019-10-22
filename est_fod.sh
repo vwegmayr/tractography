@@ -9,8 +9,8 @@ dwi2response \
 tournier \
 "${dir}/data_input.nii.gz" \
 "${dir}/response.txt" \
--mask "${dir}/dwi_brain_mask.nii.gz" \
--fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
+-fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
+-mask "${dir}/dwi_brain_mask.nii.gz" &&
 
 dwi2fod \
 csd \
@@ -18,7 +18,6 @@ csd \
 "${dir}/response.txt" \
 "${dir}/fod.nii.gz" \
 -lmax 4 \
--mask "${dir}/dwi_brain_mask.nii.gz" \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 mtnormalise \
@@ -39,7 +38,7 @@ then
     -voxel 1.25
 
     mrresize \
-    "${dir}/fod_norm.nii.gz" \
-    "${dir}/fod_norm_050.nii.gz" \
-    -voxel 0.5
+    "${dir}/peaks.nii.gz" \
+    "${dir}/peaks_125.nii.gz" \
+    -voxel 1.25
 fi

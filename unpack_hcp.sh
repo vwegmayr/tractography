@@ -44,12 +44,16 @@ dwi2tensor \
 "${dir}/data_1k.nii.gz" \
 "${dir}/tensor.nii.gz" \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
--mask "${dir}/dwi_brain_mask.nii.gz" \
+-iter 1 \
 -nthreads 20 &&
 
 tensor2metric "${dir}/tensor.nii.gz" \
 -fa "${dir}/fa.nii.gz" \
--mask "${dir}/dwi_brain_mask.nii.gz" \
+-nthreads 20 &&
+
+tensor2metric "${dir}/tensor.nii.gz" \
+-vector "${dir}/vec.nii.gz" \
+-modulate "none" \
 -nthreads 20 &&
 
 mrthreshold \
