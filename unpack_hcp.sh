@@ -4,7 +4,9 @@
 # Example: ./unpack_hcp.sh 917255
 #
 # Assumes you downloaded a file like "917255_3T_Diffusion_preproc.zip"
-# from https://db.humanconnectome.org to a folder named "hcp_zips".
+# from https://db.humanconnectome.org to a folder named "hcp_zips". 
+# In addition, corresponding "tracts" folder must be located in
+# "hcp_zips/917255/tracts"
 # Accessing this data online requires only free registration.
 #
 # Additional Requirements:
@@ -69,7 +71,7 @@ dwinormalise \
 
 # Merge and subsample tracks ###################################################
 
-# TODO: Merge HCP trk files
+cp -r "hcp_zips/${1}/tracts" "${dir}"
 
 python merge_tracks.py \
 "${dir}/tracts" \
