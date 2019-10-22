@@ -205,4 +205,4 @@ mrresize \
 mrresize \
 "scoring/scoring_data/masks/all_rois.nii.gz" \
 "${dir}/all_rois_125.nii.gz" \
--voxel 1.25 &&
+-voxel 1.25
