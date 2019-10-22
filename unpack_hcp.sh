@@ -69,8 +69,6 @@ dwinormalise \
 
 # Merge and subsample tracks ###################################################
 
-# TODO: Merge HCP trk files
-
 python merge_tracks.py \
 "${dir}/tracts" \
 --keep 0.02 \
