@@ -197,15 +197,12 @@ mrresize \
 "${dir}/vec_125.nii.gz" \
 -voxel 1.25 &&
 
-cp "scoring/scoring_data/masks/wm.nii.gz" "${dir}/wm_mask.nii.gz"
-cp "scoring/scoring_data/masks/all_rois.nii.gz" "${dir}/all_rois.nii.gz"
-
 mrresize \
-"${dir}/wm_mask.nii.gz" \
+"scoring/scoring_data/masks/wm.nii.gz" \
 "${dir}/wm_mask_125.nii.gz" \
 -voxel 1.25 &&
 
 mrresize \
-"${dir}/all_rois.nii.gz" \
+"scoring/scoring_data/masks/all_rois.nii.gz" \
 "${dir}/all_rois_125.nii.gz" \
 -voxel 1.25
