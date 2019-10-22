@@ -43,11 +43,16 @@ then
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/tensor.nii.gz" \
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
-    -mask "${dir}/dwi_brain_mask.nii.gz" \
+    -iter 1 \
     -nthreads 20 &&
 
     tensor2metric "${dir}/tensor.nii.gz" \
     -fa "${dir}/fa.nii.gz" \
+    -nthreads 20 &&
+
+    tensor2metric "${dir}/tensor.nii.gz" \
+    -vector "${dir}/vec.nii.gz" \
+    -modulate "none" \
     -nthreads 20 &&
 
     mrthreshold \
@@ -82,12 +87,16 @@ then
     "${dir}/data.nii.gz" \
     "${dir}/tensor.nii.gz" \
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
-    -mask "${dir}/dwi_brain_mask.nii.gz" \
+    -iter 1 \
     -nthreads 20 &&
 
     tensor2metric "${dir}/tensor.nii.gz" \
     -fa "${dir}/fa.nii.gz" \
-    -mask "${dir}/dwi_brain_mask.nii.gz" \
+    -nthreads 20 &&
+
+    tensor2metric "${dir}/tensor.nii.gz" \
+    -vector "${dir}/vec.nii.gz" \
+    -modulate "none" \
     -nthreads 20 &&
 
     mrthreshold \
@@ -150,12 +159,16 @@ then
     "${dir}/data_denoise_preproc.nii.gz" \
     "${dir}/tensor.nii.gz" \
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
-    -mask "${dir}/dwi_brain_mask.nii.gz" \
+    -iter 1 \
     -nthreads 20 &&
 
     tensor2metric "${dir}/tensor.nii.gz" \
     -fa "${dir}/fa.nii.gz" \
-    -mask "${dir}/dwi_brain_mask.nii.gz" \
+    -nthreads 20 &&
+
+    tensor2metric "${dir}/tensor.nii.gz" \
+    -vector "${dir}/vec.nii.gz" \
+    -modulate "none" \
     -nthreads 20 &&
 
     mrthreshold \
