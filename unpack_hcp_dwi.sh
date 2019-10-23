@@ -10,32 +10,23 @@
 # Additional Requirements:
 # MRtrix installation
 
-trk_dir="HCP105_Zenodo_NewTrkFormat"
-trk_url="https://zenodo.org/record/1477956/files/${trk_dir}.zip?download=1"
-
-if [ ! -f "hcp_zips/hcp_trks.zip" ]
-then
-    echo "Downloading HCP trk files, this can take a while..."
-    curl "${trk_url}" -o "hcp_zips/hcp_trks.zip"
-fi
+dir="subjects/${1}"
 
 if [ ! -d "subjects" ]
 then
     mkdir "subjects"
 fi
 
-dir="subjects/${1}"
-
 if [ ! -d "${dir}" ]
 then
-    unzip "hcp_zips/hcp_trks.zip" "${trk_dir}/${1}/*" -d "subjects"
-    mv "subjects/${trk_dir}/${1}" $dir
-    rmdir "subjects/${trk_dir}"
+    mkdir "${dir}"
 fi
+
+# Unpack HCP DWI ###############################################################
 
 unzip "hcp_zips/${1}_3T_Diffusion_preproc.zip" &&
 
-mv "${1}/T1w/Diffusion/"* $dir &&
+mv "${1}/T1w/Diffusion/"* "${dir}" &&
 
 rm -r "${dir}/eddylogs" &&
 rm "${dir}/grad_dev.nii.gz" &&
@@ -84,11 +75,4 @@ rm "${dir}/tensor_L"*".nii.gz" &&
 rm "${dir}/tensor_M"*".nii.gz" &&
 rm "${dir}/tensor_S0.nii.gz" &&
 rm "${dir}/tensor_V2.nii.gz" &&
-rm "${dir}/tensor_V3.nii.gz" &&
-
-# Merge and subsample tracks ###################################################
-
-python merge_tracks.py \
-"${dir}/tracts" \
---keep 0.02 \
---weighted
+rm "${dir}/tensor_V3.nii.gz"
