@@ -16,7 +16,7 @@ mkdir -p "subjects"
 
 # Basic ISMRM ##################################################################
 
-if [ $1 = "basic" ]
+if [ "$1" = "basic" ]
 then
     folder="ISMRM_2015_Tracto_challenge_data"
 
@@ -35,7 +35,7 @@ fi
 
 # Reverse Phase ISMRM ##########################################################
 
-if [ $1 = "rpe" ]
+if [ "$1" = "rpe" ]
 then
     folder=ISMRM_2015_Tracto_challenge_data_with_reversed_phase
 
@@ -54,7 +54,7 @@ fi
 
 # Ground Truth ISMRM ###########################################################
 
-if [ $1 = "gt" ]
+if [ "$1" = "gt" ]
 then
     folder=ISMRM_2015_Tracto_challenge_ground_truth_dwi_v2
 
@@ -71,7 +71,7 @@ then
     mv "${dir}/NoArtifacts_Relaxation.nii.gz" "${dir}/data.nii.gz"
 fi
 
-if [ ! -d "scoring" ]
+if [ ! -d "scoring/scoring_data" ]
 then
     mkdir "scoring"
     tar_file="scoring_data_tractography_challenge.tar.gz"
