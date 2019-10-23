@@ -68,10 +68,3 @@ rm "tensor_M*.nii.gz" &&
 rm "tensor_S0.nii.gz" &&
 rm "tensor_V2.nii.gz" &&
 rm "tensor_V3.nii.gz" &&
-
-# Merge and subsample tracks ###################################################
-
-python merge_tracks.py \
-"${dir}/tracts" \
---keep 0.02 \
---weighted
