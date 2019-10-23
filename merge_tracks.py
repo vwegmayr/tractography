@@ -73,10 +73,10 @@ else:
 
 if args.weighted:
     save_path = os.path.join(args.trk_dir,
-        "merged_w{}.trk".format(int(100*args.keep)))
+        "merged_w{:03d}.trk".format(int(100*args.keep)))
 else:
     save_path = os.path.join(args.trk_dir,
-        "merged_{}.trk".format(int(100*args.keep)))
+        "merged_{:03d}.trk".format(int(100*args.keep)))
 
 print("Saving {}".format(save_path))
 
