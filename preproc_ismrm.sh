@@ -47,7 +47,7 @@ then
     --mask "${dir}/dwi_brain_mask.nii.gz" &&
 
     mrthreshold \
-    "${dir}/fa.nii.gz" \
+    "${dir}/tensor_FA.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     -mask "${dir}/dwi_brain_mask.nii.gz" &&
 
@@ -82,7 +82,7 @@ then
     --mask "${dir}/dwi_brain_mask.nii.gz" &&
 
     mrthreshold \
-    "${dir}/fa.nii.gz" \
+    "${dir}/tensor_FA.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     -mask "${dir}/dwi_brain_mask.nii.gz" &&
 
@@ -145,7 +145,7 @@ then
     --mask "${dir}/dwi_brain_mask.nii.gz" &&
 
     mrthreshold \
-    "${dir}/fa.nii.gz" \
+    "${dir}/tensor_FA.nii.gz" \
     "${dir}/dwi_wm_mask.nii.gz" \
     -mask "${dir}/dwi_brain_mask.nii.gz" &&
 
