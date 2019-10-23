@@ -88,7 +88,7 @@ tractogram = Tractogram(
 save_dir=os.path.join(args.data_dir, "seeds")
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
-save_path = os.path.join(save_dir, "seeds_from_fibers_{}{}.trk")
+save_path = os.path.join(save_dir, "seeds_from_fibers_{}{:03d}.trk")
 save_path = save_path.format("w" if args.weighted else "", int(100*args.keep))
 print("Saving {}".format(save_path))
 TrkFile(tractogram, header).save(save_path)
