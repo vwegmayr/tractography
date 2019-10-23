@@ -16,7 +16,7 @@ trk_url="https://zenodo.org/record/1477956/files/${trk_dir}.zip?download=1"
 if [ ! -f "hcp_zips/hcp_trks.zip" ]
 then
     echo "Downloading HCP trk files, this can take a while..."
-    curl $hcp_trk_url -o "hcp_zips/hcp_trks.zip"
+    curl "${trk_url}" -o "hcp_zips/hcp_trks.zip"
 fi
 
 if [ ! -d "subjects" ]
@@ -62,11 +62,11 @@ dwi2mask "${dir}/data_1k.nii.gz" \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 dtifit \
---data "${dir}/data_1k.nii.gz" \
---out "tensor" \
---bvecs "${dir}/bvecs_input" \
---bvals "${dir}/bvals_input" \
---mask "${dir}/dwi_brain_mask.nii.gz" &&
+-k "${dir}/data_1k.nii.gz" \
+-o "${dir}/tensor" \
+-r "${dir}/bvecs_input" \
+-b "${dir}/bvals_input" \
+-m "${dir}/dwi_brain_mask.nii.gz" &&
 
 mrthreshold \
 "${dir}/tensor_FA.nii.gz" \
@@ -80,11 +80,11 @@ dwinormalise \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 # Keep only FA and V1
-rm "tensor_L*.nii.gz" &&
-rm "tensor_M*.nii.gz" &&
-rm "tensor_S0.nii.gz" &&
-rm "tensor_V2.nii.gz" &&
-rm "tensor_V3.nii.gz" &&
+rm "${dir}/tensor_L"*".nii.gz" &&
+rm "${dir}/tensor_M"*".nii.gz" &&
+rm "${dir}/tensor_S0.nii.gz" &&
+rm "${dir}/tensor_V2.nii.gz" &&
+rm "${dir}/tensor_V3.nii.gz" &&
 
 # Merge and subsample tracks ###################################################
 
