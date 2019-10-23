@@ -40,11 +40,11 @@ then
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dtifit \
-    --data "${dir}/data_denoise_preproc.nii.gz" \
-    --out "tensor" \
-    --bvecs "${dir}/bvecs_input" \
-    --bvals "${dir}/bvals_input" \
-    --mask "${dir}/dwi_brain_mask.nii.gz" &&
+    -k "${dir}/data_denoise_preproc.nii.gz" \
+    -o "${dir}/tensor" \
+    -r "${dir}/bvecs_input" \
+    -b "${dir}/bvals_input" \
+    -m "${dir}/dwi_brain_mask.nii.gz" &&
 
     mrthreshold \
     "${dir}/tensor_FA.nii.gz" \
@@ -75,11 +75,11 @@ then
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dtifit \
-    --data "${dir}/data.nii.gz" \
-    --out "tensor" \
-    --bvecs "${dir}/bvecs_input" \
-    --bvals "${dir}/bvals_input" \
-    --mask "${dir}/dwi_brain_mask.nii.gz" &&
+    -k "${dir}/data.nii.gz" \
+    -o "${dir}/tensor" \
+    -r "${dir}/bvecs_input" \
+    -b "${dir}/bvals_input" \
+    -m "${dir}/dwi_brain_mask.nii.gz" &&
 
     mrthreshold \
     "${dir}/tensor_FA.nii.gz" \
@@ -138,11 +138,11 @@ then
     -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
     dtifit \
-    --data "${dir}/data_denoise_preproc.nii.gz" \
-    --out "tensor" \
-    --bvecs "${dir}/bvecs_input" \
-    --bvals "${dir}/bvals_input" \
-    --mask "${dir}/dwi_brain_mask.nii.gz" &&
+    -k "${dir}/data_denoise_preproc.nii.gz" \
+    -o "${dir}/tensor" \
+    -r "${dir}/bvecs_input" \
+    -b "${dir}/bvals_input" \
+    -m "${dir}/dwi_brain_mask.nii.gz" &&
 
     mrthreshold \
     "${dir}/tensor_FA.nii.gz" \
@@ -161,11 +161,11 @@ fi
 # Same for all ISMRM versions ##################################################
 
 # Keep only FA and V1
-rm "tensor_L*.nii.gz" &&
-rm "tensor_M*.nii.gz" &&
-rm "tensor_S0.nii.gz" &&
-rm "tensor_V2.nii.gz" &&
-rm "tensor_V3.nii.gz" &&
+rm "${dir}/tensor_L"*".nii.gz" &&
+rm "${dir}/tensor_M"*".nii.gz" &&
+rm "${dir}/tensor_S0.nii.gz" &&
+rm "${dir}/tensor_V2.nii.gz" &&
+rm "${dir}/tensor_V3.nii.gz" &&
 
 mrresize \
 "${dir}/tensor_FA.nii.gz" \
