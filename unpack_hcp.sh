@@ -61,24 +61,15 @@ dwi2mask "${dir}/data_1k.nii.gz" \
 "${dir}/dwi_brain_mask.nii.gz" \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
-dwi2tensor \
-"${dir}/data_1k.nii.gz" \
-"${dir}/tensor.nii.gz" \
--fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" \
--iter 1 \
--nthreads 20 &&
-
-tensor2metric "${dir}/tensor.nii.gz" \
--fa "${dir}/fa.nii.gz" \
--nthreads 20 &&
-
-tensor2metric "${dir}/tensor.nii.gz" \
--vector "${dir}/vec.nii.gz" \
--modulate "none" \
--nthreads 20 &&
+dtifit \
+--data "${dir}/data_1k.nii.gz" \
+--out "tensor" \
+--bvecs "${dir}/bvecs_input" \
+--bvals "${dir}/bvals_input" \
+--mask "${dir}/dwi_brain_mask.nii.gz" &&
 
 mrthreshold \
-"${dir}/fa.nii.gz" \
+"${dir}/tensor_FA.nii.gz" \
 "${dir}/dwi_wm_mask.nii.gz" \
 -mask "${dir}/dwi_brain_mask.nii.gz" &&
 
@@ -87,6 +78,13 @@ dwinormalise \
 "${dir}/dwi_wm_mask.nii.gz" \
 "${dir}/data_input.nii.gz" \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
+
+# Keep only FA and V1
+rm "tensor_L*.nii.gz" &&
+rm "tensor_M*.nii.gz" &&
+rm "tensor_S0.nii.gz" &&
+rm "tensor_V2.nii.gz" &&
+rm "tensor_V3.nii.gz" &&
 
 # Merge and subsample tracks ###################################################
 
