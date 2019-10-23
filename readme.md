@@ -15,6 +15,42 @@
 This repository provides a utility to perform rapid prototyping of data-driven
 tractography models.
 
+## How to start
+First download the subject files from [Humman connectom]() project to the `hcp_zips` 
+folder. Each subject has a naming similar to `917255_3T_Diffusion_preproc.zip` 
+where `917255` is the ID of the subject. In addition, save the corresponding 
+gold standard track files as a zip file called `hcp_trks.zip`.
+The `hcp_zips` folder will be similar to this:
+```
+project/
+├──hcp_zips/
+|  └──644044_3T_Diffusion_preproc.zip
+|  └──992774_3T_Diffusion_preproc.zip
+|  └──hcp_trks.zip 
+```
+where `hcp_trks.zip` is the compression of a folder similar to:
+```
+HCP105_Zenodo_NewTrkFormat/
+├──644044/
+|  └──tracts
+|     └──CA.trk
+|     └──CC.trk
+|      ...
+├──992774/
+|  └──tracts
+|     └──CA.trk
+|     └──CC.trk
+|      ...
+```
+### Unpack and prepare HCP dataset
+Then you can simply run the following script. This will unpack dwi and tracts, 
+merge them, subsample them, resample them and finally get FOD:
+
+`./prepare_hcp.sh`
+
+### Download and prepare ismrm dataset
+Simply run `./prepare_ismrm.sh gt`. 
+
 ## Overview
 Using the notebooks in this repository assumes a certain file structure:
 
