@@ -24,21 +24,21 @@ for fileadress in "hcp_zips/"*".zip"; do
         
         echo "Unpacking ${filename} dwi files..." &&
         ./unpack_hcp_dwi.sh $filename &&
-        
+
         echo "Unpacking ${filename} track files..." &&
         ./unpack_hcp_trks.sh $filename &&
-        
+
         echo "Mergin ${filename} track files with keep ${keep_frac}..." &&
         python merge_tracks.py "subjects/${filename}/tracts" \
         --keep "${keep_frac}" \
         --weighted \
         --out_dir "subjects/${filename}/${merge_out_dir}" &&
-        
+
         echo "Resampling ${filename} track files with keep ${keep_merge}..." &&
         python resample_trk.py "subjects/${filename}/${merge_out_dir}/merged_W${ext_num}.trk" &&
         
         echo "Estimating FOD for ${filename}..." &&
-        ./est_fod ${filename}
+        ./est_fod.sh ${filename}
         
     else
         echo "WARNING: ${fileadress} is not a HCP folder. Skipped from the entire pipeline."
