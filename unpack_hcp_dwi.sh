@@ -10,15 +10,23 @@
 # Additional Requirements:
 # MRtrix installation
 
-# Unpack HCP TRK ###############################################################
+dir="subjects/${1}"
 
-. unpack_hcp_trks.sh &&
+if [ ! -d "subjects" ]
+then
+    mkdir "subjects"
+fi
+
+if [ ! -d "${dir}" ]
+then
+    mkdir "${dir}"
+fi
 
 # Unpack HCP DWI ###############################################################
 
 unzip "hcp_zips/${1}_3T_Diffusion_preproc.zip" &&
 
-mv "${1}/T1w/Diffusion/"* $dir &&
+mv "${1}/T1w/Diffusion/"* "${dir}" &&
 
 rm -r "${dir}/eddylogs" &&
 rm "${dir}/grad_dev.nii.gz" &&
@@ -45,11 +53,11 @@ dwi2mask "${dir}/data_1k.nii.gz" \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 dtifit \
---data "${dir}/data_1k.nii.gz" \
---out "tensor" \
---bvecs "${dir}/bvecs_input" \
---bvals "${dir}/bvals_input" \
---mask "${dir}/dwi_brain_mask.nii.gz" &&
+-k "${dir}/data_1k.nii.gz" \
+-o "${dir}/tensor" \
+-r "${dir}/bvecs_input" \
+-b "${dir}/bvals_input" \
+-m "${dir}/dwi_brain_mask.nii.gz" &&
 
 mrthreshold \
 "${dir}/tensor_FA.nii.gz" \
@@ -63,8 +71,8 @@ dwinormalise \
 -fslgrad "${dir}/bvecs_input" "${dir}/bvals_input" &&
 
 # Keep only FA and V1
-rm "tensor_L*.nii.gz" &&
-rm "tensor_M*.nii.gz" &&
-rm "tensor_S0.nii.gz" &&
-rm "tensor_V2.nii.gz" &&
-rm "tensor_V3.nii.gz" &&
+rm "${dir}/tensor_L"*".nii.gz" &&
+rm "${dir}/tensor_M"*".nii.gz" &&
+rm "${dir}/tensor_S0.nii.gz" &&
+rm "${dir}/tensor_V2.nii.gz" &&
+rm "${dir}/tensor_V3.nii.gz"
