@@ -75,6 +75,12 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
         if keep < 1:
             p = np.ones(n_seeds) / n_seeds
 
+        header = TrkFile.create_empty_header()
+        header["voxel_to_rasmm"] = wm_file.affine
+        header["dimensions"] = wm_file.header["dim"][1:4]
+        header["voxel_sizes"] = wm_file.header["pixdim"][1:4]
+        header["voxel_order"] = b"RAS"
+
     if keep < 1:
         keep_n = int(keep * n_seeds)
         print("Subsampling from {} seeds to {} seeds".format(n_seeds, keep_n))
@@ -99,8 +105,9 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
         "W" if weighted else "",
         int(100*keep)
     )
+
     print("Saving {}".format(save_path))
-    TrkFile(tractogram, header if source=="trk" else None).save(save_path)
+    TrkFile(tractogram, header).save(save_path)
 
     os.remove(resized_path)
     for file in glob.glob(os.path.join(trk_dir, "*.trk")):
