@@ -10,90 +10,133 @@ from nibabel.streamlines import ArraySequence, Tractogram
 from nibabel.streamlines.trk import TrkFile
 
 
-parser = argparse.ArgumentParser(description="Convert fiber endpoints to seeds.")
+def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
 
-parser.add_argument("--data_dir", help="Path to scoring_data directory.",
-    default="scoring/scoring_data")
+    trk_dir = os.path.join(data_dir, "bundles")
 
-parser.add_argument("--keep", default=1.0, type=float, 
-    help="Fraction of seeds to keep during subsampling.")
+    anat_path = os.path.join(data_dir, "masks", "wm.nii.gz")
+    resized_path = os.path.join(data_dir, "masks", "wm_125.nii.gz")
+    sp.call(["mrresize", "-voxel", "1.25", anat_path, resized_path])
 
-parser.add_argument("--weighted", action="store_true",
-    help="If provided, subsample seeds weighted by bundle size.")
+    if source == "trk":
 
-args = parser.parse_args()
+        print("Running Tractconverter...")
+        sp.call([
+            "python",
+            "tractconverter/scripts/WalkingTractConverter.py",
+            "-i", trk_dir,
+            "-a", resized_path,
+            "-vtk2trk"])
 
+        print("Loading seed bundles...")
+        seed_bundles = []
+        for i, trk_path in enumerate(glob.glob(os.path.join(trk_dir, "*.trk"))):
+            trk_file = nib.streamlines.load(trk_path)
+            endpoints = []
+            for fiber in trk_file.tractogram.streamlines:
+                endpoints.append(fiber[0])
+                endpoints.append(fiber[-1])
+            seed_bundles.append(endpoints)
+            if i == 0:
+                header = trk_file.header
 
-assert args.keep >= 0.01
+        n_seeds = sum([len(b) for b in seed_bundles])
+        n_bundles = len(seed_bundles)
 
-trk_dir = os.path.join(args.data_dir, "bundles")
+        print("Loaded {} seeds from {} bundles.".format(n_seeds, n_bundles))
 
-anat_path = os.path.join(args.data_dir, "masks", "wm.nii.gz")
-resized_path = os.path.join(args.data_dir, "masks", "wm_125.nii.gz")
-sp.call(["mrresize", "-voxel", "1.25", anat_path, resized_path])
+        seeds = np.array([[seed] for bundle in seed_bundles for seed in bundle])
 
-print("Running Tractconverter...")
-sp.call([
-    "python",
-    "tractconverter/scripts/WalkingTractConverter.py",
-    "-i", trk_dir,
-    "-a", resized_path,
-    "-vtk2trk"])
+        if keep < 1:
+            if weighted:
+                p = np.zeros(n_seeds)
+                offset=0
+                for b in seed_bundles:
+                    l = len(b)
+                    p[offset:offset+l] = 1 / (l * n_bundles)
+                    offset += l
+            else:
+                p = np.ones(n_seeds) / n_seeds
 
-print("Loading seed bundles...")
-seed_bundles = []
-for i, trk_path in enumerate(glob.glob(os.path.join(trk_dir, "*.trk"))):
-    trk_file = nib.streamlines.load(trk_path)
-    endpoints = []
-    for fiber in trk_file.tractogram.streamlines:
-        endpoints.append(fiber[0])
-        endpoints.append(fiber[-1])
-    seed_bundles.append(endpoints)
-    if i == 0:
-        header = trk_file.header
+    elif source == "wm":
 
-n_seeds = sum([len(b) for b in seed_bundles])
-n_bundles = len(seed_bundles)
+        weighted = False
 
-print("Loaded {} seeds from {} bundles.".format(n_seeds, n_bundles))
+        wm_file = nib.load(resized_path)
+        wm_img = wm_file.get_fdata()
 
-seeds = np.array([[seed] for bundle in seed_bundles for seed in bundle])
+        seeds = np.argwhere(wm_img > threshold)
+        seeds = np.hstack([seeds, np.ones([len(seeds), 1])])
 
-if args.keep < 1:
-    if args.weighted:
-        p = np.zeros(n_seeds)
-        offset=0
-        for b in seed_bundles:
-            l = len(b)
-            p[offset:offset+l] = 1 / (l * n_bundles)
-            offset += l
-    else:
-        p = np.ones(n_seeds) / n_seeds
+        seeds = (wm_file.affine.dot(seeds.T).T)[:, :3].reshape(-1, 1, 3)
 
-    keep_n = int(args.keep * n_seeds)
-    print("Subsampling from {} seeds to {} seeds".format(n_seeds, keep_n))
+        n_seeds = len(seeds)
 
-    np.random.seed(42)
-    seeds = np.random.choice(
-        seeds,
-        size=keep_n,
-        replace=False,
-        p=p)
+        if keep < 1:
+            p = np.ones(n_seeds) / n_seeds
 
-tractogram = Tractogram(
-        streamlines=ArraySequence(seeds),
-        affine_to_rasmm=np.eye(4)
+    if keep < 1:
+        keep_n = int(keep * n_seeds)
+        print("Subsampling from {} seeds to {} seeds".format(n_seeds, keep_n))
+        np.random.seed(42)
+        seeds = np.random.choice(
+            seeds,
+            size=keep_n,
+            replace=False,
+            p=p)
+
+    tractogram = Tractogram(
+            streamlines=ArraySequence(seeds),
+            affine_to_rasmm=np.eye(4)
+        )
+
+    save_dir=os.path.join(data_dir, "seeds")
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, "seeds_from_{}_{}{:03d}.trk")
+    save_path = save_path.format(
+        source,
+        "W" if weighted else "",
+        int(100*keep)
     )
+    print("Saving {}".format(save_path))
+    TrkFile(tractogram, header if source=="trk" else None).save(save_path)
 
-save_dir=os.path.join(args.data_dir, "seeds")
-if not os.path.exists(save_dir):
-    os.makedirs(save_dir)
-save_path = os.path.join(save_dir, "seeds_from_fibers_{}{:03d}.trk")
-save_path = save_path.format("w" if args.weighted else "", int(100*args.keep))
-print("Saving {}".format(save_path))
-TrkFile(tractogram, header).save(save_path)
+    os.remove(resized_path)
+    for file in glob.glob(os.path.join(trk_dir, "*.trk")):
+        os.remove(file)
 
+if __name__ == '__main__':
 
-os.remove(resized_path)
-for file in glob.glob(os.path.join(trk_dir, "*.trk")):
-    os.remove(file)
+    parser = argparse.ArgumentParser(
+        description="Convert fiber endpoints to seeds.")
+
+    parser.add_argument("--data_dir", help="Path to scoring_data directory.",
+        default="scoring/scoring_data")
+
+    parser.add_argument("--source", default="wm", type=str,
+        choices=["wm", "trk"], 
+        help="Source for seeds: White Matter (wm) or Tracts (trk).")
+
+    parser.add_argument("--keep", default=1.0, type=float, 
+        help="Fraction of seeds to keep during subsampling.")
+
+    parser.add_argument("--weighted", action="store_true",
+        help="If provided, subsample seeds weighted by fiber bundle size. "
+        "Only applicable if source == trk.")
+
+    parser.add_argument("--thresh", default=0.1, type=float,
+        help="Only applicable if source == wm. Threshold for White Matter "
+        "Mask.")
+
+    args = parser.parse_args()
+
+    assert args.keep >= 0.01
+
+    get_ismrm_seeds(
+        args.data_dir,
+        args.source,
+        args.keep,
+        args.weighted,
+        args.thresh
+    )
