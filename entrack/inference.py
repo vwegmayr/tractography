@@ -22,36 +22,42 @@ from sklearn.preprocessing import normalize
 from time import time
 
 
-class Prior(object):
+class MarginHandler(object):
+
+    def xyz2ijk(self, xyz):
+        ijk = (xyz.T).copy()
+        self.affi.dot(ijk, out=ijk)
+        return np.round(ijk, out=ijk).astype(int, copy=False)
+
+
+class Prior(MarginHandler):
 
     def __init__(self, prior_path):
         if ".nii" in prior_path:
             vec_img = nib.load(prior_path)
             self.vec = vec_img.get_data()
-            affi = np.linalg.inv(vec_img.affine)
-            self.xyz2ijk = lambda xyz: np.round(affi.dot(xyz.T).T).astype(int)
+            self.affi = np.linalg.inv(vec_img.affine)
         elif ".h5" in prior_path:
             raise NotImplementedError # TODO: Implement prior model
-            
+        
     def __call__(self, xyz):
         if hasattr(self, "vec"):
             ijk = self.xyz2ijk(xyz)
-            vecs = self.vec[ijk[:,0], ijk[:,1], ijk[:,2]]
+            vecs = self.vec[ijk[0], ijk[1], ijk[2]] # fancy indexing -> copy!
             # Assuming that seeds have been duplicated for both directions!
-            vecs[len(ijk)//2:, :] *= -1
+            vecs[len(vecs)//2:, :] *= -1
             return normalize(vecs)
         elif hasattr(self, "model"):
             raise NotImplementedError # TODO: Implement prior model
 
 
-class Terminator(object):
+class Terminator(MarginHandler):
 
     def __init__(self, term_path, thresh):
         if ".nii" in term_path:
             scalar_img = nib.load(term_path)
             self.scalar = scalar_img.get_data()
-            affi = np.linalg.inv(scalar_img.affine)
-            self.xyz2ijk = lambda xyz: np.round(affi.dot(xyz.T).T).astype(int)
+            self.affi = np.linalg.inv(scalar_img.affine)
         elif ".h5" in term_path:
             raise NotImplementedError # TODO: Implement termination model
         self.threshold = thresh
@@ -60,8 +66,7 @@ class Terminator(object):
         if hasattr(self, "scalar"):
             ijk = self.xyz2ijk(xyz)
             return np.where(
-                self.scalar[
-                    ijk[:,0], ijk[:,1], ijk[:,2]] < self.threshold)[0]
+                self.scalar[ijk[0], ijk[1], ijk[2]] < self.threshold)[0]
         else:
             raise NotImplementedError
 
@@ -88,7 +93,6 @@ def run_inference(
     print("Loading DWI...")
     
     dwi_img = nib.load(dwi_path)
-
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
@@ -107,86 +111,82 @@ def run_inference(
                         "DistributionLambda": tfp.layers.DistributionLambda})
     
     # Define coordinate transforms
-    
     input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
     block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
     
-    def xyz2ijk(coords, snap=False, shift=False):
-        ijk = dwi_affi.dot(coords.T).T
+    def xyz2ijk(coords, snap=False):
+        ijk = (coords.T).copy()
+        dwi_affi.dot(ijk, out=ijk)
         if snap:
-            ijk = np.round(ijk).astype(int)
-        return ijk
+            return np.round(ijk, out=ijk).astype(int, copy=False).T
+        else:
+            return ijk.T
     
     # Define Fiber Termination
-    
     terminator = Terminator(term_path, thresh)
     
-    print("Loading Seeds...")
+    # Define Prior for First Fiber Direction
+    prior = Prior(prior_path)
+
+    print("Initializing Fibers...")
     
     seed_file = nib.streamlines.load(seed_path)
-    seeds = seed_file.tractogram.streamlines.data
-    seeds = np.vstack([seeds, seeds])  # Duplicate seeds for both directions
-    seeds = np.hstack([seeds, np.ones([len(seeds), 1])]) # add affine dimension
-    assert seeds.shape[-1] == 4   # (x, y, z, 1)
-    
-    # Define Prior for First Fiber Direction
-        
-    prior = Prior(prior_path)
-    
-    print("Initialize Fibers...")
-    
-    xyz = seeds.reshape(-1, 1, 4) # (fiber, segment, coord)
-    
-    fiber_idx = np.hstack([np.arange(len(seeds)//2), np.arange(len(seeds)//2)])
-    fibers = [[] for _ in range(len(seeds)//2)]
-    
+    xyz = seed_file.tractogram.streamlines.data
+    n_seeds = 2 * len(xyz)
+    xyz = np.vstack([xyz, xyz])  # Duplicate seeds for both directions
+    xyz = np.hstack([xyz, np.ones([n_seeds, 1])]) # add affine dimension
+    xyz = xyz.reshape(-1, 1, 4)  # (fiber, segment, coord)
+
+    fiber_idx = np.hstack([
+        np.arange(n_seeds//2, dtype="int32"),
+        np.arange(n_seeds//2,  dtype="int32")
+    ])
+    fibers = [[] for _ in range(n_seeds//2)]
+
     print("Start Iteration...")
-    
+
+    d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
+    vout = np.zeros([n_seeds, 3])
     for i in range(max_steps):
         t0 = time()
         
-        ijk = xyz2ijk(xyz[:,-1,:], snap=True, shift=True) # Get coords of latest segement for each fiber 
+        ijk = xyz2ijk(xyz[:,-1,:], snap=True) # Get coords of latest segement for each fiber 
 
-        d = np.zeros([len(ijk), block_size, block_size, block_size, dwi.shape[-1]])
+        n_ongoing = len(ijk)
 
         for ii, idx in enumerate(ijk):
             d[ii] = dwi[idx[0] - (block_size // 2) : idx[0] + (block_size // 2) + 1,
                         idx[1] - (block_size // 2) : idx[1] + (block_size // 2) + 1,
                         idx[2] - (block_size // 2) : idx[2] + (block_size // 2) + 1,
-                    :]
-        d = d.reshape(-1, dwi.shape[-1] * block_size**3)
+                    :].flatten()
         
         if i == 0:
-            vin = prior(xyz[:,0,:])
+            inputs = np.hstack([prior(xyz[:,0,:]), d[:n_ongoing]])
         else:
-            vin = vout.copy()
-        
-        chunk_size = 2**15 # 32768
-        n_chunks = np.ceil(len(vin) / chunk_size).astype(int)
-        
-        inputs = np.hstack([vin,d])
-        vout = np.zeros([len(vin), 3])
-        for chunk in range(n_chunks):
-            input_chunk = inputs[chunk * chunk_size : (chunk + 1) * chunk_size]
+            inputs = np.hstack([vout[:n_ongoing], d[:n_ongoing]])
+
+        chunk = 2**15 # 32768
+        n_chunks = np.ceil(n_ongoing / chunk).astype(int)
+        for c in range(n_chunks):
             if predict_fn == "mean":
-                v = model(input_chunk).mean().numpy()
-                v = normalize(v) # Careful, the FvM mean is not a unit vector!
+                v = model(inputs[c * chunk : (c + 1) * chunk]).mean().numpy()
+                v = normalize(v)
             else:
-                v = model(input_chunk).sample().numpy() # Samples are unit length, though!
-            vout[chunk * chunk_size : (chunk + 1) * chunk_size] = v
+                v = model(inputs[c * chunk : (c + 1) * chunk]).sample().numpy()
+            vout[c * chunk : (c + 1) * chunk] = v
            
-        rout = (xyz[:, -1, :3] + step_size * vout)
-        rout = np.hstack([rout, np.ones((len(rout), 1))]).reshape(-1, 1, 4)
+        rout = xyz[:, -1, :3] + step_size * vout
+        rout = np.hstack([rout, np.ones((n_ongoing, 1))]).reshape(-1, 1, 4)
         
         xyz = np.concatenate([xyz, rout], axis=1)
         
-        terminal_indices = terminator(xyz[:, -1, :]) # Check latest points for termination
+        terminal_indices = terminator(xyz[:, -1, :])
 
         for idx in terminal_indices:
             gidx = fiber_idx[idx]
             # Other end not yet added
             if not fibers[gidx]:
-                fibers[gidx].append(xyz[idx, :, :3])
+                fibers[gidx].append(np.copy(xyz[idx, :, :3]))
             # Other end already added
             else:
                 this_end = xyz[idx, :, :3]
@@ -202,14 +202,14 @@ def run_inference(
         
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
             " {:6.0f} steps/sec".format(
-            (i+1), max_steps, len(seeds)-len(fiber_idx), len(seeds),
-            100*(1-len(fiber_idx)/len(seeds)), len(vin) / (time() - t0)),
+            (i+1), max_steps, n_seeds-n_ongoing, n_seeds,
+            100*(1-n_ongoing/n_seeds), n_ongoing / (time() - t0)),
             end="\r"
         )
         
-        if len(fiber_idx) == 0:
+        if n_ongoing == 0:
             break
-            
+        
         gc.collect()
     
     # Include unfinished fibers:
