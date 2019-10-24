@@ -13,6 +13,7 @@ import shutil
 import yaml
 import csv
 import json
+import argparse
 
 from hashlib import md5
 from scipy.interpolate import RegularGridInterpolator
@@ -34,9 +35,9 @@ def generate_samples(
     hasher.update(str(no_reverse).encode())
     hasher.update(str(keep_n).encode())
 
-    if reverse_samples and keep_n % 2 != 0:
+    if not no_reverse and keep_n % 2 != 0:
         raise ValueError("keep_n can not be an odd number for "
-            "reverse_samples == True.")
+            "no_reverse == False.")
     
     trk_file = nib.streamlines.load(trk_path)
     assert trk_file.tractogram.data_per_point is not None
@@ -159,19 +160,21 @@ if __name__ == '__main__':
     parser.add_argument("trk_path", help="Path to TRK file")
 
     parser.add_argument("--model", default="conditional",
-        choices=["conditional"], help="Which model to generate samples for."
+        choices=["conditional"], help="Which model to generate samples for.")
 
     parser.add_argument("--block_size", help="Size of cubic neighborhood.",
-        choices=[1,3,5,7], type=int)
+        default=3, choices=[1,3,5,7], type=int)
 
     parser.add_argument("--no_reverse", action="store_false",
         help="Do not include direction-reversed samples.")
 
-    parser.add_argument("--keep_n", default=2**30, 
+    parser.add_argument("--keep_n", default=2**30, type=int,
         help="Maximum number of samples to keep.")
 
     parser.add_argument("--out_dir", default=None, 
-        help="Sample directory, by default resides next to dwi_path.")
+        help="Sample directory, by default creates directory next to dwi_path.")
+
+    args = parser.parse_args()
 
     generate_samples(
         args.dwi_path,
