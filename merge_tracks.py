@@ -59,7 +59,7 @@ def merge_trks(trk_dir, keep, weighted, out_dir):
         tractogram = merged_bundles
 
     if out_dir is None:
-        out_dir = os.path.basename(trk_dir)
+        out_dir = os.path.dirname(trk_dir)
         out_dir = os.path.join(out_dir, "merged_tracts")
 
     os.makedirs(out_dir, exist_ok=True)
@@ -82,6 +82,7 @@ if __name__ == '__main__':
         "Merge several bundle trks with optional weighted subsampling.\n\n"
         "WARNING: Assumes that each trk file has the same affine.\n\n"
         "HCP whole brain ~ 1.700.000 fibers from 72 bundles\n"
+        "keep=0.05 ~ 90k fibers ~ 3.5 Mio segments"
         "n_segments ~ 40 x n_fibers\n")
 
     parser.add_argument("trk_dir", help="Directory containing trk files.")
