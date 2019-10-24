@@ -1,22 +1,17 @@
 import os
-os.environ['PYTHONHASHSEED'] = '0'
-import random as rn
-rn.seed(12345)
-from numpy.random import seed
-seed(42)
+import random
 
 import nibabel as nib
-import nipy as ni
 import numpy as np
-import datetime
-import shutil
 import yaml
-import csv
-import json
 import argparse
 
 from hashlib import md5
 from scipy.interpolate import RegularGridInterpolator
+
+os.environ['PYTHONHASHSEED'] = '0'
+np.random.seed(42)
+random.seed(12345)
 
 def generate_samples(
     dwi_path,
