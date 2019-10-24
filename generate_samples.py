@@ -49,7 +49,7 @@ def generate_samples(
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
-    dwi_xyz2ijk = lambda r: dwi_affi.dot([r[0], r[1], r[2], 1])[:3] + 0.5
+    dwi_xyz2ijk = lambda r: dwi_affi.dot([r[0], r[1], r[2], 1])[:3]
     dwi = dwi_img.get_data()
 
     tracts = trk_file.tractogram # fiber coordinates in rasmm
