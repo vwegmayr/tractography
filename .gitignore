@@ -3,3 +3,5 @@
 subjects/
 hcp_zips/
 models/
+scoring/scoring_data
+scoring/results
