@@ -48,7 +48,7 @@ def create_samples(config):
     if config["reverse_samples"]:
         n_samples *= 2
     n_samples = min(n_samples, config["max_n_samples"])
-    print(f'number of samples: {n_samples}')
+    print('number of samples: {0}'.format(n_samples))
 
     np.random.seed(42)
     perm = np.random.permutation(len(tracts))
