@@ -134,18 +134,23 @@ def create_samples(config):
     out_dir = config['out_dir']
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(dwi_path), "samples")
+    out_dir = os.path.join(out_dir, hasher.hexdigest())
 
-    if os.path.exists(out_dir):
-        print("Samples with this config have been created already:\n{}".format(out_dir))
-        return None, None
-    os.makedirs(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    sample_path = os.path.join(out_dir, "samples.npz")
+    print("\nSaving {}".format(sample_path))
 
     inputs = np.concatenate(inputs, axis=0)
     outputs = np.concatenate(outputs, axis=0)
-    save_path = os.path.join(out_dir, "samples.npz")
 
-    print("Saving {}".format(save_path))
-    np.savez_compressed(save_path, inputs=inputs, outputs=outputs)
+    np.savez_compressed(
+        sample_path,
+        inputs=inputs,
+        outputs=outputs,
+        input_shape=inputs[0].shape,
+        output_shape=outputs[0].shape,
+        n_samples=n_samples)
 
     config["n_samples"] = int(n_samples)
     config_path = os.path.join(out_dir, "config" + ".yml")

@@ -1,70 +1,17 @@
 import os
 import argparse
 import datetime
-
-import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
-
-tfd = tfp.distributions
-
 import shutil
 import yaml
 
-from hashlib import md5
-from tensorflow.keras.layers import (Input, Reshape, Dropout, BatchNormalization, Lambda, Dense)
+import tensorflow as tf
+import numpy as np
+
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
-from tensorflow.keras import backend as K
 from multiprocessing import cpu_count
 from GPUtil import getFirstAvailable
 
-
-class EntrackConditional(object):
-    """docstring for EntrackConditional"""
-    model_name="EntrackConditional"
-
-    def __init__(self, input_shape):
-
-        inputs = Input(shape=input_shape, name="inputs")
-
-        self.keras = tf.keras.Model(
-            inputs,
-            self.model_fn(inputs),
-            name=self.model_name
-        )
-
-    @staticmethod
-    def model_fn(inputs):
-        """MLP with two output heads for mu and kappa"""
-        x = Dense(2048, activation="relu")(inputs)
-        x = Dense(2048, activation="relu")(x)
-        x = Dense(2048, activation="relu")(x)
-
-        mu = Dense(1024, activation="relu")(x)
-        mu = Dense(3, activation="linear")(mu)
-        mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
-
-        kappa = Dense(1024, activation="relu")(x)
-        kappa = Dense(1, activation="relu")(kappa)
-        kappa = Lambda(lambda t: K.squeeze(t, 1), name="kappa")(kappa)
-
-        return tfp.layers.DistributionLambda(
-            make_distribution_fn=lambda params: tfd.VonMisesFisher(
-                mean_direction=params[0], concentration=params[1]),
-            convert_to_tensor_fn=tfd.Distribution.mean
-        )([mu, kappa])
-
-    @staticmethod
-    def loss(observed_y, predicted_distribution):
-        """Negative log-likelihood"""
-        return -K.mean(predicted_distribution.log_prob(observed_y))
-
-    def compile(self, optimizer):
-        self.keras.compile(optimizer=optimizer, loss=self.loss)
-
-
-MODELS = {"EntrackConditional": EntrackConditional}
-
+from models import MODELS
 
 class ConditionalSamples(tf.keras.utils.Sequence):
     def __init__(self,
@@ -140,8 +87,10 @@ def train(model_name,
     if eval_path is not None:
         eval_seq = ConditionalSamples(eval_path, istraining=False)
         callbacks.append(
-            ModelCheckpoint(os.path.join(out_dir,
-                "weights.{epoch:02d}-{val_loss:.2f}.h5"), save_best_only=True)
+            ModelCheckpoint(
+                os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
+                save_best_only=True,
+                save_weights_only=False)
         )
     else:
         eval_seq = None
@@ -170,6 +119,15 @@ def train(model_name,
         raise e
     finally:
         if no_exception:
+            config=dict(
+                model_name=model_name,
+                train_path=train_path,
+                eval_path=str(eval_path),
+                max_n_samples=str(max_n_samples),
+                batch_size=str(batch_size),
+                epochs=str(epochs),
+                learning_rate=str(learning_rate),
+                optimizer=optimizer._keras_api_names[0])
             config_path = os.path.join(out_dir, "config" + ".yml")
             print("Saving {}".format(config_path))
             with open(config_path, "w") as file:
