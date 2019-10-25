@@ -4,6 +4,8 @@
 subjects/
 hcp_zips/
 models/
+!models/model_classes.py
+!models/__init__.py
 scoring/scoring_data
 scoring/results
 *.pyc
