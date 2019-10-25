@@ -1,5 +1,6 @@
 import os
 import argparse
+import datetime
 
 import numpy as np
 import tensorflow as tf
@@ -18,8 +19,8 @@ from multiprocessing import cpu_count
 from GPUtil import getFirstAvailable
 
 os.environ['PYTHONHASHSEED'] = '0'
-tf.compat.v1.set_random_seed(42)
-np.random.seed(42)
+tf.compat.v1.set_random_seed(3)
+np.random.seed(3)
 
 try:
     os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
@@ -63,34 +64,24 @@ class ConditionalSamples(tf.keras.utils.Sequence):
 
 def train_model(config):
 
-    hasher = md5()
-    for v in config.values():
-        hasher.update(str(v).encode())
-
-    save_dir = os.path.join(config['out_dir'], config["model_name"], hasher.hexdigest())
-
-    if os.path.exists(save_dir):
-        print("This model config has been trained already:\n{}".format(save_dir))
-        return
-
     # Define Model Function and Loss
 
     train_path = os.path.join(config["train_dir"], "samples.npz")
 
-    input_shape = np.load(train_path)["inputs"].shape[1:]
+    input_shape = np.load(train_path)["input_shape"]
     inputs = Input(shape=input_shape, name="inputs")
 
     def model_fn(inputs):
 
-        x = Dense(1024, activation="relu")(inputs)
+        x = Dense(2048, activation="relu")(inputs)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
 
-        x = Dense(1024, activation="relu")(x)
-
-        mu = Dense(512, activation="relu")(x)
+        mu = Dense(1024, activation="relu")(x)
         mu = Dense(3, activation="linear")(mu)
         mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
 
-        kappa = Dense(512, activation="relu")(x)
+        kappa = Dense(1024, activation="relu")(x)
         kappa = Dense(1, activation="relu")(kappa)
         kappa = Lambda(lambda t: K.squeeze(t, 1), name="kappa")(kappa)
 
@@ -108,30 +99,40 @@ def train_model(config):
 
     # Run Training
 
-    train_seq = ConditionalSamples(config["train_dir"], config["batch_size"],
-                                    max_n_samples=config["max_n_samples"])
+    train_seq = ConditionalSamples(
+        config["train_dir"],
+        config["batch_size"],
+        max_n_samples=config["max_n_samples"]
+    )
+    callbacks = [
+        TensorBoard(log_dir=save_dir,
+                    write_graph=False,
+                    update_freq=5 * config["batch_size"],
+                    profile_batch=0)
+    ]
     eval_seq = None
     if config['eval_dir'] is not None:
         eval_seq = ConditionalSamples(config["eval_dir"], istraining=False)
+        callbacks.append(
+            ModelCheckpoint(os.path.join(save_dir,
+                "weights.{epoch:02d}-{val_loss:.2f}.h5"), save_best_only=True)
+        )
     try:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
         no_exception = True
+
 
         os.makedirs(save_dir, exist_ok=True)
 
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(),
+            optimizer=tf.keras.optimizers.Adadelta(),
             loss=negative_log_likelihood
         )
         train_history = model.fit_generator(
             train_seq,
             epochs=config["epochs"],
             validation_data=eval_seq,
-            callbacks=[
-                TensorBoard(log_dir=save_dir,
-                            write_graph=False,
-                            update_freq=5 * config["batch_size"],
-                            profile_batch=0),
-            ],
+            callbacks=callbacks,
             max_queue_size=2 * config["batch_size"],
             use_multiprocessing=True,
             workers=cpu_count()
@@ -176,7 +177,7 @@ if __name__ == '__main__':
     parser.add_argument("--epochs", type=int, default=10,
                         help="Number of training epochs")
 
-    parser.add_argument("--out_dir", type=str, default='../models/',
+    parser.add_argument("--out_dir", type=str, default='models',
         help="Directory to save the training results")
 
     args = parser.parse_args()
