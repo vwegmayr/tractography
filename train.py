@@ -140,8 +140,10 @@ def train(model_name,
     if eval_path is not None:
         eval_seq = ConditionalSamples(eval_path, istraining=False)
         callbacks.append(
-            ModelCheckpoint(os.path.join(out_dir,
-                "weights.{epoch:02d}-{val_loss:.2f}.h5"), save_best_only=True)
+            ModelCheckpoint(
+                os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
+                save_best_only=True,
+                save_weights_only=False)
         )
     else:
         eval_seq = None
@@ -170,6 +172,15 @@ def train(model_name,
         raise e
     finally:
         if no_exception:
+            config=dict(
+                model_name=model_name,
+                train_path=train_path,
+                eval_path=str(eval_path),
+                max_n_samples=str(max_n_samples),
+                batch_size=str(batch_size),
+                epochs=str(epochs),
+                learning_rate=str(learning_rate),
+                optimizer=optimizer._keras_api_names[0])
             config_path = os.path.join(out_dir, "config" + ".yml")
             print("Saving {}".format(config_path))
             with open(config_path, "w") as file:
