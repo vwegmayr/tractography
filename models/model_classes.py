@@ -7,10 +7,26 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 
 tfd = tfp.distributions
 
+
+def neg_log_likelihood(y_true, predicted_distribution):
+    return -K.mean(predicted_distribution.log_prob(y_true))
+
+
+def neg_dot_prod(y_true, y_pred):
+    y_pred = K.l2_normalize(y_pred, axis=-1)
+    return -K.mean(K.sum(y_true * y_pred, axis=1))
+
+
 class EntrackConditional(object):
     """docstring for EntrackConditional"""
     model_name="EntrackConditional"
 
+    custom_objects = {
+            "neg_log_likelihood": neg_log_likelihood,
+            "neg_dot_prod": neg_dot_prod,
+            "DistributionLambda": tfp.layers.DistributionLambda
+        }
+        
     def __init__(self, input_shape):
 
         inputs = Input(shape=input_shape, name="inputs")
@@ -42,25 +58,9 @@ class EntrackConditional(object):
             convert_to_tensor_fn=tfd.Distribution.mean
         )([mu, kappa])
 
-    @staticmethod
-    def loss(observed_y, predicted_distribution):
-        """Negative log-likelihood"""
-        return -K.mean(predicted_distribution.log_prob(observed_y))
-
-    @staticmethod
-    def neg_dot_prod(y_true, y_pred):
-        y_pred = K.l2_normalize(y_pred, axis=-1)
-        return -K.mean(K.sum(y_true * y_pred, axis=1))
-
-    def _metrics(self):
-        return [self.neg_dot_prod]
 
     def compile(self, optimizer):
         self.keras.compile(
             optimizer=optimizer,
-            loss=self.loss,
-            metrics=self._metrics())
-
-    def custom_objects(self):
-        return {"loss": self.loss,
-                "DistributionLambda": tfp.layers.DistributionLambda}
+            loss=self.custom_objects["neg_log_likelihood"],
+            metrics=[self.custom_objects["neg_dot_prod"]])

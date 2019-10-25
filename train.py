@@ -62,11 +62,13 @@ def train(model_name,
           optimizer,
           out_dir):
 
+    # Load Model ###############################################################
+
     input_shape = tuple(np.load(train_path)["input_shape"])
     model = MODELS[model_name](input_shape)
     model.keras.summary()
 
-    # Run Training
+    # Run Training #############################################################
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     out_dir = os.path.join(out_dir, model_name, timestamp)

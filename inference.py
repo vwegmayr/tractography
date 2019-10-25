@@ -20,6 +20,8 @@ from hashlib import md5
 from sklearn.preprocessing import normalize
 from time import time
 
+from models import MODELS
+
 os.environ['PYTHONHASHSEED'] = '0'
 tf.compat.v1.set_random_seed(42)
 np.random.seed(42)
@@ -93,29 +95,13 @@ def run_inference(
 ):
     """"""
     
-    print("Loading DWI...")
+    print("Loading DWI...") ####################################################
     
     dwi_img = nib.load(dwi_path)
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
     dwi = dwi_img.get_data()
-    
-    print("Loading Model...")
-    
-    # TODO: put different losses into an outside module, and import them
-    # with importlib according to a string passed by args.
-    def negative_log_likelihood(observed_y, predicted_distribution):
-        return -K.mean(predicted_distribution.log_prob(observed_y))
-    
-    model = load_model(model_path,
-                       custom_objects={
-                       "negative_log_likelihood": negative_log_likelihood,
-                        "DistributionLambda": tfp.layers.DistributionLambda})
-    
-    # Define coordinate transforms
-    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
-    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
     
     def xyz2ijk(coords, snap=False):
         ijk = (coords.T).copy()
@@ -124,14 +110,24 @@ def run_inference(
             return np.round(ijk, out=ijk).astype(int, copy=False).T
         else:
             return ijk.T
+
+    print("Loading Models...") #################################################
     
-    # Define Fiber Termination
+    config_path = os.path.join(os.path.dirname(model_path), "config.yml")
+    
+    with open(config_path, "r") as config_file:
+        model_name = yaml.load(config_file)["model_name"]
+
+    print(MODELS[model_name].custom_objects)
+
+    model = load_model(model_path,
+                       custom_objects=MODELS[model_name].custom_objects)
+    
     terminator = Terminator(term_path, thresh)
     
-    # Define Prior for First Fiber Direction
     prior = Prior(prior_path)
 
-    print("Initializing Fibers...")
+    print("Initializing Fibers...") ############################################
     
     seed_file = nib.streamlines.load(seed_path)
     xyz = seed_file.tractogram.streamlines.data
@@ -146,7 +142,10 @@ def run_inference(
     ])
     fibers = [[] for _ in range(n_seeds//2)]
 
-    print("Start Iteration...")
+    print("Start Iteration...") ################################################
+
+    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
+    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
 
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
     vout = np.zeros([n_seeds, 3])
@@ -172,9 +171,9 @@ def run_inference(
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
         for c in range(n_chunks):
             if predict_fn == "mean":
-                v = model(inputs[c * chunk : (c + 1) * chunk]).mean().numpy()
-                v = normalize(v)
-            else:
+                v = model(inputs[c * chunk : (c + 1) * chunk]).mean_direction.numpy()
+                # v = normalize(v)
+            elif predict_fn == "sample":
                 v = model(inputs[c * chunk : (c + 1) * chunk]).sample().numpy()
             vout[c * chunk : (c + 1) * chunk] = v
            
