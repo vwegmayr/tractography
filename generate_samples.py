@@ -127,7 +127,13 @@ def generate_samples(
 
     sample_path = os.path.join(out_dir, "samples.npz")
     print("\nSaving {}".format(sample_path))
-    np.savez_compressed(sample_path, inputs=inputs, outputs=outputs)
+    np.savez_compressed(
+        sample_path,
+        inputs=inputs,
+        outputs=outputs,
+        input_shape=inputs[0].shape,
+        output_shape=outputs[0].shape,
+        n_samples=n_samples)
     
     config_path = os.path.join(out_dir, "config.yml")
     config=dict(
