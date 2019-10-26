@@ -1,3 +1,3 @@
-from .model_classes import EntrackConditional
+from .model_classes import FvM
 
-MODELS = {"EntrackConditional": EntrackConditional}
+MODELS = {"FvM": FvM}

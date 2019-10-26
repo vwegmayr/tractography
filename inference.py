@@ -119,8 +119,6 @@ def run_inference(
     with open(config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
 
-    print(MODELS[model_name].custom_objects)
-
     model = load_model(model_path,
                        custom_objects=MODELS[model_name].custom_objects)
     

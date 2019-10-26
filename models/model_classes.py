@@ -17,9 +17,9 @@ def neg_dot_prod(y_true, y_pred):
     return -K.mean(K.sum(y_true * y_pred, axis=1))
 
 
-class EntrackConditional(object):
-    """docstring for EntrackConditional"""
-    model_name="EntrackConditional"
+class FvM(object):
+    """docstring for FvMConditional"""
+    model_name="FvM"
 
     custom_objects = {
             "neg_log_likelihood": neg_log_likelihood,
@@ -57,7 +57,6 @@ class EntrackConditional(object):
                 mean_direction=params[0], concentration=params[1]),
             convert_to_tensor_fn=tfd.Distribution.mean
         )([mu, kappa])
-
 
     def compile(self, optimizer):
         self.keras.compile(
