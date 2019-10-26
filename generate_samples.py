@@ -1,45 +1,148 @@
 import os
 import random
+import datetime
 
 import nibabel as nib
 import numpy as np
 import yaml
 import argparse
 
-from hashlib import md5
 from scipy.interpolate import RegularGridInterpolator
 
 os.environ['PYTHONHASHSEED'] = '0'
 np.random.seed(42)
 random.seed(12345)
 
-def generate_samples(
-    dwi_path,
-    trk_path,
-    model,
-    block_size,
-    no_reverse,
-    keep_n,
-    out_dir):
-    """"""
-    hasher = md5()
-    hasher.update(str(dwi_path).encode())
-    hasher.update(str(trk_path).encode())
-    hasher.update(str(model).encode())
-    hasher.update(str(block_size).encode())
-    hasher.update(str(no_reverse).encode())
-    hasher.update(str(keep_n).encode())
 
-    if not no_reverse and keep_n % 2 != 0:
-        raise ValueError("keep_n can not be an odd number for "
-            "no_reverse == False.")
+def interpolate(idx, dwi, block_size):
+
+    IDX = np.round(idx).astype(int)
+
+    values = np.zeros([3, 3, 3,
+                       block_size, block_size, block_size,
+                       dwi.shape[-1]])
+
+    for x in range(3):
+        for y in range(3):
+            for z in range(3):
+                values[x, y, z,:] = dwi[
+                    IDX[0] + x - 2 * (block_size // 2) : IDX[0] + x + 1,
+                    IDX[1] + y - 2 * (block_size // 2) : IDX[1] + y + 1,
+                    IDX[2] + z - 2 * (block_size // 2) : IDX[2] + z + 1,
+                    :]
+
+    fn = RegularGridInterpolator(
+        ([-1,0,1],[-1,0,1],[-1,0,1]), values)
     
+    return (fn([idx[0]-IDX[0], idx[1]-IDX[1], idx[2]-IDX[2]])[0]).flatten()
+
+
+def generate_conditional_samples(dwi,
+                                 tracts,
+                                 dwi_xyz2ijk,
+                                 block_size,
+                                 n_samples):
+
+    fiber_lengths = [len(f) - 1 for f in tracts]
+    n_samples = min(2*np.sum(fiber_lengths), n_samples)
+    #===========================================================================
+    inputs = np.zeros([n_samples, 3 + 1 + dwi.shape[-1] * block_size**3],
+        dtype="float32")
+    outgoing = np.zeros([n_samples, 3], dtype="float32")
+    isterminal = np.zeros(n_samples, dtype="float32")
+    done=False
+    n = 0
+    for tract in tracts:
+        last_pt = len(tract.streamline) - 1
+        for i, pt in enumerate(tract.streamline):
+            #-------------------------------------------------------------------
+            idx = dwi_xyz2ijk(pt)
+            d = interpolate(idx, dwi, block_size)
+            dnorm = np.linalg.norm(d)
+            d /= dnorm
+            #-------------------------------------------------------------------
+            vout = tract.data_for_points["t"][i]
+
+            if i == 0:
+                vout *= -1
+                vin = -tract.data_for_points["t"][i+1]
+            else:
+                vin = tract.data_for_points["t"][i-1]
+
+            inputs[n] = np.hstack([vin, d, dnorm])
+            outgoing[n] = vout
+            if i in [0, last_pt]:
+                isterminal[n] = 1
+            n += 1
+
+            if i not in [0, last_pt]:
+                inputs[n] = np.hstack([-vin, d, dnorm])
+                outgoing[n] = -vout
+                n += 1
+            #-------------------------------------------------------------------
+            if n == (n_samples - 1):
+                done = True
+                break
+
+        print("Finished {:3.0f}%".format(100*n/n_samples), end="\r")
+
+        if done:
+            return (n_samples,
+                {"inputs": inputs, "isterminal": isterminal,
+                 "outgoing": outgoing})
+
+
+def generate_prior_samples(dwi,
+                           tracts,
+                           dwi_xyz2ijk,
+                           block_size,
+                           n_samples):
+
+    n_samples = min(2*len(tracts), n_samples)
+    #===========================================================================
+    inputs = np.zeros([n_samples, 1 + dwi.shape[-1] * block_size**3],
+        dtype="float32")
+    outgoing = np.zeros([n_samples, 3], dtype="float32")
+    done=False
+    n=0
+    for tract in tracts:
+        for i, pt in enumerate(tract.streamline[[0, -1]]):
+            #-------------------------------------------------------------------
+            idx = dwi_xyz2ijk(pt)
+            d = interpolate(idx, dwi, block_size)
+            dnorm = np.linalg.norm(d)
+            d /= dnorm
+            #-------------------------------------------------------------------
+            vout = tract.data_for_points["t"][i]
+            if i == 1:
+                vout *= -1
+            inputs[n] = np.hstack([d, dnorm])
+            outgoing[n] = vout
+            n += 1
+            #-------------------------------------------------------------------
+            if n == (n_samples - 1):
+                done = True
+                break
+            #-------------------------------------------------------------------
+        print("Finished {:3.0f}%".format(100*n/n_samples), end="\r")
+
+        if done:
+            return n_samples, {"inputs": inputs, "outgoing": outgoing}
+
+
+def generate_samples(dwi_path,
+                     trk_path,
+                     model,
+                     block_size,
+                     n_samples,
+                     out_dir):
+    """"""
+    assert n_samples % 2 == 0
+
     trk_file = nib.streamlines.load(trk_path)
     assert trk_file.tractogram.data_per_point is not None
     assert "t" in trk_file.tractogram.data_per_point
-    
-    #=================================================
-    
+    #===========================================================================
     dwi_img = nib.load(dwi_path)
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
@@ -48,92 +151,32 @@ def generate_samples(
     dwi = dwi_img.get_data()
 
     tracts = trk_file.tractogram # fiber coordinates in rasmm
-
-    n_fibers = len(tracts)
-    fiber_lengths = [len(f) for f in tracts]
-    n_samples = np.sum(fiber_lengths) - 2 * n_fibers
-    if not no_reverse:
-        n_samples *= 2 
-    n_samples = min(n_samples, keep_n)
-    
+    #===========================================================================
+    if model == "conditional":
+        n_samples, samples = generate_conditional_samples(dwi, tracts,
+            dwi_xyz2ijk, block_size, n_samples)
+    elif model == "prior":
+        n_samples, samples = generate_prior_samples(dwi, tracts, dwi_xyz2ijk,
+            block_size, n_samples)
+    #===========================================================================
     np.random.seed(42)
-    perm = np.random.permutation(len(tracts))
-    tracts = tracts[perm]
-    
-    #=================================================
-    
-    inputs = []
-    outputs = []
-    done=False
-    for fi, f in enumerate(tracts):  
-        for i, r in enumerate(f.streamline[1:-1]): # Exclude end points for conditional model
-            try:
-                idx = dwi_xyz2ijk(r) # anchor idx
-                IDX = np.round(idx).astype(int)
-                
-                values = np.zeros([3, 3, 3,
-                                   block_size, block_size, block_size,
-                                   dwi.shape[-1]])
-                
-                for x in range(block_size):
-                    for y in range(block_size):
-                        for z in range(block_size):
-                            values[x, y, z,:] = dwi[
-                                IDX[0] + x - 2 * (block_size // 2) : IDX[0] + x + 1,
-                                IDX[1] + y - 2 * (block_size // 2) : IDX[1] + y + 1,
-                                IDX[2] + z - 2 * (block_size // 2) : IDX[2] + z + 1,
-                                :]
-                fn = RegularGridInterpolator(
-                    ([-1,0,1],[-1,0,1],[-1,0,1]), values)
-                
-                d = fn([idx[0]-IDX[0], idx[1]-IDX[1], idx[2]-IDX[2]])[0]
-                d = d.flatten() # to get back the spatial order: reshape(bs, bs, bs, dwi.shape[-1])
-                
-            except IndexError:
-                n_samples -= (1 if no_reverse else 2)
-                print(("Index error at r={}, idx={}, fiber_idx={}\nMaybe wrong "
-                    "reference frame, or resampling failed.").format(
-                    r, idx, perm[fi]))
-                continue
-                
-            vout = f.data_for_points["t"][i+1].astype("float32")
-            vin = f.data_for_points["t"][i].astype("float32")
-
-            outputs.append(vout)
-            inputs.append(np.hstack([vin, d]).astype("float32"))
-
-            if not no_reverse:
-                inputs.append(np.hstack([-vout, d]).astype("float32"))
-                outputs.append(-vin)
-
-            if len(inputs) == n_samples:
-                done = True
-                break
-
-        print("Finished {:3.0f}%".format(100*len(inputs)/n_samples), end="\r")
-
-        if done:
-            break
-
-    assert n_samples == len(inputs)
-    assert n_samples == len(outputs)
-    assert inputs[0].shape == (3 + dwi_img.shape[-1] * block_size**3, )
-    assert outputs[0].shape == (3, )
-
+    perm = np.random.permutation(n_samples)
+    for k, v in samples.items():
+        samples[k] = v[perm]
+    #===========================================================================
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(dwi_path), "samples")
-    out_dir = os.path.join(out_dir, hasher.hexdigest())
+    out_dir = os.path.join(out_dir, timestamp)
     os.makedirs(out_dir, exist_ok=True)
 
     sample_path = os.path.join(out_dir, "samples.npz")
     print("\nSaving {}".format(sample_path))
     np.savez_compressed(
         sample_path,
-        inputs=inputs,
-        outputs=outputs,
-        input_shape=inputs[0].shape,
-        output_shape=outputs[0].shape,
-        n_samples=n_samples)
+        input_shape=samples["inputs"].shape[1:],
+        n_samples=n_samples,
+        **samples)
     
     config_path = os.path.join(out_dir, "config.yml")
     config=dict(
@@ -142,13 +185,12 @@ def generate_samples(
         trk_path=trk_path,
         model=model,
         block_size=int(block_size),
-        no_reverse=str(no_reverse)
     )
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
             yaml.dump(config, file, default_flow_style=False)
             
-    return inputs, outputs
+    return samples
 
 
 if __name__ == '__main__':
@@ -161,15 +203,13 @@ if __name__ == '__main__':
     parser.add_argument("trk_path", help="Path to TRK file")
 
     parser.add_argument("--model", default="conditional",
-        choices=["conditional"], help="Which model to generate samples for.")
+        choices=["conditional", "prior"],
+        help="Which model to generate samples for.")
 
     parser.add_argument("--block_size", help="Size of cubic neighborhood.",
         default=3, choices=[1,3,5,7], type=int)
 
-    parser.add_argument("--no_reverse", action="store_false",
-        help="Do not include direction-reversed samples.")
-
-    parser.add_argument("--keep_n", default=2**30, type=int,
+    parser.add_argument("--n_samples", default=2**30, type=int,
         help="Maximum number of samples to keep.")
 
     parser.add_argument("--out_dir", default=None, 
@@ -182,6 +222,5 @@ if __name__ == '__main__':
         args.trk_path,
         args.model,
         args.block_size,
-        args.no_reverse,
-        args.keep_n,
+        args.n_samples,
         args.out_dir)

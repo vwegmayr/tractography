@@ -18,7 +18,7 @@ def neg_dot_prod(y_true, y_pred):
 
 
 class FvM(object):
-    """docstring for FvMConditional"""
+    """docstring for FvM"""
     model_name="FvM"
 
     custom_objects = {
@@ -26,6 +26,8 @@ class FvM(object):
             "neg_dot_prod": neg_dot_prod,
             "DistributionLambda": tfp.layers.DistributionLambda
         }
+
+    sample_class = "FvMSamples"
         
     def __init__(self, input_shape):
 

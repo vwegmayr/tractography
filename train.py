@@ -3,6 +3,7 @@ import argparse
 import datetime
 import shutil
 import yaml
+import importlib
 
 import tensorflow as tf
 import numpy as np
@@ -13,7 +14,7 @@ from multiprocessing import cpu_count
 from GPUtil import getFirstAvailable
 
 from models import MODELS
-from utils.training import ConditionalSamples, Summaries
+from utils import training as T
 
 
 def train(model_name,
@@ -40,7 +41,9 @@ def train(model_name,
     out_dir = os.path.join(out_dir, model_name, suffix, timestamp)
     os.makedirs(out_dir, exist_ok=True)
 
-    train_seq = ConditionalSamples(
+    sampler = getattr(T, model.sample_class)
+
+    train_seq = sampler(
         train_path,
         batch_size,
         max_n_samples=max_n_samples
@@ -52,7 +55,7 @@ def train(model_name,
                           min_lr=0.0001)]
 
     if eval_path is not None:
-        eval_seq = ConditionalSamples(eval_path,
+        eval_seq = sampler(eval_path,
             max_n_samples=max_n_samples, istraining=False)
         callbacks.append(
             ModelCheckpoint(
@@ -64,13 +67,13 @@ def train(model_name,
         eval_seq = None
 
     callbacks.append(
-        Summaries(_for=["kappa"],
-            eval_seq=eval_seq,
-            output_freq=1, # epochs
-            log_dir=out_dir,
-                write_graph=False,
-                update_freq=len(train_seq)//10, # every 10-th batch
-                profile_batch=0)
+        T.Summaries(_for=["kappa"],
+                  eval_seq=eval_seq,
+                  output_freq=1, # epochs
+                  log_dir=out_dir,
+                  write_graph=False,
+                  update_freq=len(train_seq)//10, # every 10-th batch
+                  profile_batch=0)
     )
     try:
         print("\nStart training, saving to {}\n".format(out_dir))
@@ -85,7 +88,7 @@ def train(model_name,
             epochs=epochs,
             validation_data=eval_seq,
             callbacks=callbacks,
-            max_queue_size=2 * batch_size,
+            max_queue_size=4 * batch_size,
             use_multiprocessing=True,
             workers=cpu_count()
         )

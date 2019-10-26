@@ -59,7 +59,7 @@ class Summaries(TensorBoard):
             writer.flush()
 
 
-class ConditionalSamples(Sequence):
+class Samples(Sequence):
     def __init__(self,
                  sample_path,
                  batch_size=256,
@@ -68,21 +68,8 @@ class ConditionalSamples(Sequence):
         """"""
         self.batch_size = batch_size
         self.istraining = istraining
-
-        print("Loading {} samples...".format("train" if istraining else "eval"))
-        samples = np.load(sample_path)
-
-        self.inputs = samples["inputs"]
-        self.outputs = samples["outputs"]
-
-        assert len(self.inputs) == len(self.outputs)
-
-        self.inputs = self.inputs[:min(max_n_samples, len(self.inputs))]
-        self.outputs = self.outputs[:min(max_n_samples, len(self.outputs))]
-
-        self.n_samples = len(self.inputs)
-
-        assert self.n_samples > 0
+        self.samples = np.load(sample_path) # lazy loading
+        self.n_samples = min(max_n_samples, self.samples["n_samples"])
 
     def __len__(self):
         if self.istraining:
@@ -90,10 +77,17 @@ class ConditionalSamples(Sequence):
         else:
             return np.ceil(self.n_samples / self.batch_size).astype(int)
 
-    def __getitem__(self, idx):
-        x_batch = np.vstack(
-            self.inputs[idx * self.batch_size:(idx + 1) * self.batch_size])
-        y_batch = np.vstack(
-            self.outputs[idx * self.batch_size:(idx + 1) * self.batch_size])
 
+class FvMSamples(Samples):
+
+    def __init__(self, *args, **kwargs):
+        super(FvMSamples, self).__init__(*args, **kwargs)
+        print("Loading {} samples...".format("train" if self.istraining
+            else "eval"))
+        self.inputs = self.samples["inputs"]
+        self.outgoing = self.samples["outgoing"]
+
+    def __getitem__(self, idx):
+        x_batch = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
+        y_batch = self.outgoing[idx*self.batch_size:(idx + 1)*self.batch_size]
         return x_batch, y_batch
