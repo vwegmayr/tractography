@@ -2,6 +2,7 @@ import os
 import yaml
 import gc
 import argparse
+import datetime
 
 import nibabel as nib
 import numpy as np
@@ -237,18 +238,9 @@ def run_inference(
     if out_dir is None:
         out_dir = os.path.dirname(dwi_path)
 
-    hasher = md5()
-    hasher.update(model_path.encode())
-    hasher.update(dwi_path.encode())
-    hasher.update(prior_path.encode())
-    hasher.update(seed_path.encode())
-    hasher.update(str(term_path).encode())
-    hasher.update(str(thresh).encode())
-    hasher.update(predict_fn.encode())
-    hasher.update(str(step_size).encode())
-    hasher.update(str(max_steps).encode())
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
 
-    out_dir = os.path.join(out_dir, "predicted_fibers", hasher.hexdigest())
+    out_dir = os.path.join(out_dir, "predicted_fibers", timestamp)
 
     os.makedirs(out_dir, exist_ok=True)
 
