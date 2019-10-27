@@ -80,7 +80,7 @@ def generate_conditional_samples(dwi,
                 outgoing[n] = -vout
                 n += 1
             #-------------------------------------------------------------------
-            if n == (n_samples - 1):
+            if n == n_samples:
                 done = True
                 break
 

@@ -66,15 +66,15 @@ def train(model_name,
     else:
         eval_seq = None
 
-    callbacks.append(
-        T.Summaries(_for=["kappa"],
-                  eval_seq=eval_seq,
-                  output_freq=1, # epochs
-                  log_dir=out_dir,
-                  write_graph=False,
-                  update_freq=len(train_seq)//10, # every 10-th batch
-                  profile_batch=0)
-    )
+    if hasattr(model, "summaries"):
+        callbacks.append(
+            getattr(T, model.summaries)(
+                eval_seq=eval_seq,
+                log_dir=out_dir,
+                write_graph=False,
+                update_freq=len(train_seq)//50, # every 50-th batch
+                profile_batch=0)
+        )
     try:
         print("\nStart training, saving to {}\n".format(out_dir))
 
@@ -167,8 +167,8 @@ if __name__ == '__main__':
     np.random.seed(3)
 
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
-            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(order="load",
+            maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
     except Exception as e:
         print(str(e))
 
