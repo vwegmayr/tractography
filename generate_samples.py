@@ -162,6 +162,8 @@ def generate_samples(dwi_path,
     np.random.seed(42)
     perm = np.random.permutation(n_samples)
     for k, v in samples.items():
+        assert not np.isnan(v).any()
+        assert not np.isinf(v).any()
         samples[k] = v[perm]
     #===========================================================================
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
