@@ -66,10 +66,10 @@ def merge_trks(trk_dir, keep, weighted, out_dir):
 
     if weighted:
         save_path = os.path.join(out_dir,
-            "merged_W{:03d}.trk".format(int(100*args.keep)))
+            "merged_W{:04d}.trk".format(int(1000*args.keep)))
     else:
         save_path = os.path.join(out_dir,
-            "merged_{:03d}.trk".format(int(100*args.keep)))
+            "merged_{:04d}.trk".format(int(1000*args.keep)))
 
     print("Saving {}".format(save_path))
 
@@ -99,6 +99,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    assert args.keep >= 0.01
+    assert args.keep >= 0.001
 
     merge_trks(args.trk_dir, args.keep, args.weighted, args.out_dir)
