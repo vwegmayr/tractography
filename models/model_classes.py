@@ -8,8 +8,8 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 tfd = tfp.distributions
 
 
-def mean_neg_log_prob(y_true, predicted_distribution):
-    return -K.mean(predicted_distribution.log_prob(y_true))
+def mean_neg_log_prob(y_true, pred_dist):
+    return -K.mean(pred_dist.log_prob(y_true))
 
 def mean_neg_dot_prod(y_true, y_pred):
     y_pred = K.l2_normalize(y_pred, axis=-1)
