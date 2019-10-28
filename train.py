@@ -59,8 +59,11 @@ def train(model_name,
                           min_lr=0.0001)]
 
     if eval_path is not None:
-        eval_seq = sampler(eval_path,
-            max_n_samples=max_n_samples, istraining=False)
+        eval_seq = sampler(
+            eval_path,
+            max_n_samples=max_n_samples,
+            sample_weight=sample_weight,
+            istraining=False)
         callbacks.append(
             ModelCheckpoint(
                 os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
