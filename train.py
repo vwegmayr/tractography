@@ -26,13 +26,15 @@ def train(model_name,
           learning_rate,
           optimizer,
           suffix,
+          loss_weight,
+          sample_weight,
           out_dir):
 
 
     # Load Model ###############################################################
 
     input_shape = tuple(np.load(train_path)["input_shape"])
-    model = MODELS[model_name](input_shape)
+    model = MODELS[model_name](input_shape, loss_weight=loss_weight)
     model.keras.summary()
 
     # Run Training #############################################################
@@ -46,7 +48,8 @@ def train(model_name,
     train_seq = sampler(
         train_path,
         batch_size,
-        max_n_samples=max_n_samples
+        max_n_samples=max_n_samples,
+        sample_weight=sample_weight
     )
 
     callbacks = [ReduceLROnPlateau(monitor='val_loss',
@@ -110,6 +113,10 @@ def train(model_name,
                 epochs=str(epochs),
                 learning_rate=str(learning_rate),
                 optimizer=optimizer._keras_api_names[0])
+            if "Hybrid" in model_name:
+                config["sample_weight"] = str(sample_weight)
+                config["loss_weight"] = str(loss_weight)
+
             config_path = os.path.join(out_dir, "config" + ".yml")
             print("Saving {}".format(config_path))
             with open(config_path, "w") as file:
@@ -160,7 +167,20 @@ if __name__ == '__main__':
     parser.add_argument("--out", type=str, default='models', dest="out_dir",
         help="Directory to save the training results")
 
+    parser.add_argument("--lw", type=float, default=None, dest="loss_weight",
+        help="Total weight of terminal loss, must be set for hybrid models.")
+
+    parser.add_argument("--sw", type=float, default=None, dest="sample_weight",
+        help="Weight of terminal samples, must be set for hybrid models.")
+
     args = parser.parse_args()
+
+    if "Hybrid" in args.model_name:
+        if args.loss_weight is None:
+            parser.error("Hybrid models require loss_weight (--lw).")
+        if args.sample_weight is None:
+            parser.error("Hybrid models require sample_weight (--sw).")
+
 
     os.environ['PYTHONHASHSEED'] = '0'
     tf.compat.v1.set_random_seed(3)
@@ -181,4 +201,6 @@ if __name__ == '__main__':
           args.learning_rate,
           args.optimizer,
           args.suffix,
+          args.loss_weight,
+          args.sample_weight,
           args.out_dir)
