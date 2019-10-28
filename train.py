@@ -4,6 +4,7 @@ import datetime
 import shutil
 import yaml
 import importlib
+import logging
 
 import tensorflow as tf
 import numpy as np
@@ -185,6 +186,9 @@ if __name__ == '__main__':
     os.environ['PYTHONHASHSEED'] = '0'
     tf.compat.v1.set_random_seed(3)
     np.random.seed(3)
+
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
+    logging.getLogger('tensorflow').setLevel(logging.ERROR)
 
     try:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(order="load",
