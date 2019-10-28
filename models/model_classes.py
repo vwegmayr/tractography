@@ -37,7 +37,7 @@ class FvM(object):
 
     summaries = "FvMSummaries"
         
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, loss_weight=None):
 
         inputs = Input(shape=input_shape, name="inputs")
 
@@ -89,7 +89,7 @@ class FvMHybrid(object):
     
     summaries = "FvMHybridSummaries"
 
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, loss_weight):
 
         inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)
@@ -99,6 +99,8 @@ class FvMHybrid(object):
             [self.fvm(shared), self.isterminal(shared)],
             name=self.model_name
         )
+
+        self.loss_weight = loss_weight
 
     @staticmethod
     def _shared_layers(inputs):
@@ -139,5 +141,5 @@ class FvMHybrid(object):
                 "fvm": self.custom_objects["neg_log_prob"],
                 "isterminal": "binary_crossentropy"
             },
-            loss_weights = {"fvm": 1.0, "isterminal": 1.0},
+            loss_weights = {"fvm": 1.0, "isterminal": self.loss_weight},
         )

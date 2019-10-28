@@ -55,12 +55,14 @@ class Samples(Sequence):
                  sample_path,
                  batch_size=256,
                  istraining=True,
-                 max_n_samples=np.inf):
+                 max_n_samples=np.inf,
+                 sample_weight=None):
         """"""
         self.batch_size = batch_size
         self.istraining = istraining
         self.samples = np.load(sample_path) # lazy loading
         self.n_samples = min(max_n_samples, self.samples["n_samples"])
+        self.sample_weight = sample_weight
 
     def __len__(self):
         if self.istraining:
@@ -98,7 +100,9 @@ class FvMHybridSamples(FvMSamples):
         fvm_sample_weights = 1.0 - isterminal
         fvm_sample_weights /= np.sum(fvm_sample_weights)
 
-        isterminal_sample_weights = (1.0 - isterminal) + isterminal * 30.0 
+        isterminal_sample_weights = (
+            (1.0 - isterminal) + isterminal * self.sample_weight
+        )
         isterminal_sample_weights /= np.sum(isterminal_sample_weights)
 
         return (
