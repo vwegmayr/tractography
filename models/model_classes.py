@@ -20,13 +20,25 @@ def fvm_entropy(kappa):
     )
 
 
+def fvm_cost(y_true, dist_pred):
+    return - K.sum(dist_pred.mean() * y_true, axis=1)
+
+
+def mean_fvm_entropy(kappa):
+    return K.mean(fvm_entropy(kappa))
+
+
+def mean_fvm_cost(y_true, dist_pred):
+    return K.mean(fvm_cost(y_true, dist_pred))
+
+
 def mean_neg_log_prob(y_true, dist_pred):
-    return -K.mean(dist_pred.log_prob(y_true))
+    return - K.mean(dist_pred.log_prob(y_true))
 
 
 def mean_neg_dot_prod(y_true, y_pred):
     y_pred = K.l2_normalize(y_pred, axis=-1)
-    return -K.mean(K.sum(y_true * y_pred, axis=1))
+    return - K.mean(K.sum(y_true * y_pred, axis=1))
 
 
 def neg_log_prob(y_true, dist_pred):
@@ -35,7 +47,7 @@ def neg_log_prob(y_true, dist_pred):
 
 def neg_dot_prod(y_true, y_pred):
     y_pred = K.l2_normalize(y_pred, axis=-1)
-    return -K.sum(y_true * y_pred, axis=1)
+    return - K.sum(y_true * y_pred, axis=1)
 
 
 class FisherVonMises(tfd.VonMisesFisher):
@@ -178,93 +190,74 @@ class FvMHybrid(object):
         )
 
 
-def fvm_cost(y_true, dist_pred):
-    return - K.sum(dist_pred.mean() * y_true, axis=1)
-
-
-class FvMEntropyRegularizer(tf.keras.regularizers.Regularizer):
-    """docstring for FvMEntropyRegularizer"""
-    def __init__(self, temperature):
-        super(FvMEntropyRegularizer, self).__init__()
-        self.temperature = K.cast_to_floatx(temperature)
-        
-    def __call__(self, kappa):
-        return - self.temperature * K.mean(fvm_entropy(kappa))
-
-    def get_config(self):
-        return {"temperature": float(self.temperature)}
-
-    def set_T(self, T):
-        self.temperature = K.cast_to_floatx(T)
-
-
-class FvMEntropyRegularization(tf.keras.layers.Layer):
-    """"""
-    def __init__(self, temperature, **kwargs):
-        super(FvMEntropyRegularization, self).__init__(
-            activity_regularizer=FvMEntropyRegularizer(temperature), **kwargs)
-        self.supports_masking = True
-        self.temperature = temperature
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-    def get_config(self):
-        config = {"temperature": self.temperature}
-        base_config = super(FvMEntropyRegularization, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-
 class Entrack(FvM):
     """docstring for Entrack"""
     model_name="Entrack"
 
     custom_objects = {
-            "mean_free_energy": None, # set during by init
+            "mean_fvm_cost": mean_fvm_cost,
+            "mean_fvm_entropy": mean_fvm_entropy,
             "mean_neg_dot_prod": mean_neg_dot_prod,
             "DistributionLambda": tfp.layers.DistributionLambda
         }
-  
-    @staticmethod
-    def mean_free_energy(T):
-        loss_fn = lambda y_true, dist_pred: K.mean(
-            - K.sum(dist_pred.mean() * y_true, axis=1) - T * dist_pred.entropy()
-        )
-        return loss_fn
 
-    def __init__(self, *args, temperature, **kwargs):
+    def __init__(self, input_shape, temperature, *args, loss_weight=None, **kwargs):
 
         super(Entrack, self).__init__(*args, **kwargs)
 
-        self.custom_objects["mean_free_energy"] = self.mean_free_energy(
-            temperature)
+        inputs = Input(shape=input_shape, name="inputs")
+        shared = self._shared_layers(inputs)
+        kappa = self.kappa(shared)
+        mu = self.mu(shared)
+
+        self.keras = tf.keras.Model(
+            inputs,
+            [self.fvm(mu, kappa), kappa],
+            name=self.model_name
+        )
+
+        self.temperature = temperature
 
     @staticmethod
-    def model_fn(inputs):
-        """MLP with two output heads for mu and kappa"""
+    def _shared_layers(inputs):
         x = Dense(2048, activation="relu")(inputs)
         x = Dense(2048, activation="relu")(x)
         x = Dense(2048, activation="relu")(x)
+        return x
 
-        mu = Dense(1024, activation="relu")(x)
-        mu = Dense(3, activation="linear")(mu)
-        mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
-
+    @staticmethod
+    def kappa(x):
         kappa = Dense(1024, activation="relu")(x)
         kappa = Dense(1, activation="relu")(kappa)
         kappa = Lambda(lambda t: K.squeeze(t, 1) + 0.001, name="kappa")(kappa)
+        return kappa
+    
+    @staticmethod
+    def mu(x):
+        mu = Dense(1024, activation="relu")(x)
+        mu = Dense(3, activation="linear")(mu)
+        mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
+        return mu
 
+    @staticmethod
+    def fvm(mu, kappa):
         fvm = tfp.layers.DistributionLambda(
             make_distribution_fn=lambda params: FisherVonMises(
                 mean_direction=params[0], concentration=params[1]),
             convert_to_tensor_fn=tfd.Distribution.mean,
             name="fvm"
         )([mu, kappa])
-
         return fvm
 
     def compile(self, optimizer):
         self.keras.compile(
             optimizer=optimizer,
-            loss=self.custom_objects["mean_free_energy"],
-            metrics=[self.custom_objects["mean_neg_dot_prod"]])
+            loss={
+                "fvm": self.custom_objects["mean_fvm_cost"],
+                "kappa" self.custom_objects["mean_fvm_entropy"]:
+            },
+            loss_weights={"fvm": 1.0, "kappa": -self.temperature},
+            metrics={"fvm": self.custom_objects["mean_neg_dot_prod"]}
+        )
+
+# TODO: Write callback for temperature schedule with K.variable
