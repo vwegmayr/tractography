@@ -69,7 +69,8 @@ def train(model_name,
             ModelCheckpoint(
                 os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
                 save_best_only=True,
-                save_weights_only=False)
+                save_weights_only=False,
+                period=5)
         )
     else:
         eval_seq = None
