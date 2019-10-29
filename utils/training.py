@@ -92,8 +92,12 @@ class RNNSamples(Samples):
         self.outgoing = self.samples["outgoing"]
 
         # Cut whatever doesn't fit in a batch
-        self.inputs = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size),...] for batch_input in self.inputs])
-        self.outgoing = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size), ...] for batch_input in self.outgoing])
+        self.inputs = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size),...]
+                                for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size ])
+        self.outgoing = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size), ...]
+                                  for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size])
+        print("Reduced length of input from {0} to {1} to fit the batch size.".
+              format(len(self.samples["inputs"]), len(self.inputs)))
 
         # To help find the right fiber for the right batch index
         self.batch_indices = np.cumsum([(fiber.shape[0] // self.batch_size) * fiber.shape[1] for fiber in self.inputs])
