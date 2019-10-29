@@ -162,12 +162,17 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
     done=False
     n = 0
     for tract in tracts:
-        tract_n_samples = min((len(tract.streamline) - 2 ) * 2 + 2, n_samples - n)
+        tract_n_samples = min((len(tract.streamline) - 1), (n_samples - n) // 2) # TODO: Check it's fine
+
         inputs = np.zeros([tract_n_samples, 3 + 1 + dwi.shape[-1] * block_size ** 3], dtype="float32")
         outgoing = np.zeros([tract_n_samples, 3], dtype="float32")
         isterminal = np.zeros(tract_n_samples, dtype="float32")
 
-        last_pt = tract_n_samples // 2
+        reverse_inputs = np.zeros([tract_n_samples, 3 + 1 + dwi.shape[-1] * block_size ** 3], dtype="float32")
+        reverse_outgoing = np.zeros([tract_n_samples, 3], dtype="float32")
+        reverse_isterminal = np.zeros(tract_n_samples, dtype="float32")
+
+        last_pt = tract_n_samples
         for i, pt in enumerate(tract.streamline):
             #-------------------------------------------------------------------
             idx = dwi_xyz2ijk(pt)
@@ -175,23 +180,38 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
             dnorm = np.linalg.norm(d)
             d /= dnorm
             #-------------------------------------------------------------------
-            if i == 0:
+
+            if i == 0:  # First is only used as the end point of the reverse direction
                 vout = - tract.data_for_points["t"][i]
                 vin = - tract.data_for_points["t"][i + 1]
-            else:
+
+                reverse_inputs[tract_n_samples - 1 - i] = np.hstack([-vin, d, dnorm])
+                reverse_outgoing[tract_n_samples - 1 - i] = -vout
+                reverse_isterminal[tract_n_samples - 1 - i] = 1
+                n += 1
+
+            elif i == last_pt: # Last is only used as the last point of usual direction
                 vout = tract.data_for_points["t"][i]
                 vin = tract.data_for_points["t"][i - 1]
 
-            inputs[i] = np.hstack([vin, d, dnorm])
-            outgoing[i] = vout
-            if i in [0, last_pt]:
-                isterminal[i] = 1
-            n += 1
-
-            if i not in [0, last_pt]:
-                inputs[tract_n_samples - 1 - i] = np.hstack([-vin, d, dnorm])
-                outgoing[tract_n_samples - 1 - i] = -vout
+                inputs[i - 1] = np.hstack([vin, d, dnorm])
+                outgoing[i - 1] = vout
+                isterminal[i - 1] = 1
                 n += 1
+            else:  # Other points are used in both direction
+                vout = tract.data_for_points["t"][i]
+                vin = tract.data_for_points["t"][i - 1]
+
+                inputs[i - 1] = np.hstack([vin, d, dnorm])
+                outgoing[i - 1] = vout
+                n += 1
+
+                reverse_inputs[tract_n_samples - 1 - i] = np.hstack([-vin, d, dnorm])
+                reverse_outgoing[tract_n_samples - 1 - i] = -vout
+                n += 1
+
+
+
             #-------------------------------------------------------------------
             if n == n_samples:
                 done = True
@@ -200,12 +220,15 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
         all_inputs.append(inputs)
         all_outgoings.append(outgoing)
         all_isterminals.append(isterminal)
+        all_inputs.append(reverse_inputs)
+        all_outgoings.append(reverse_outgoing)
+        all_isterminals.append(reverse_isterminal)
         print("Finished {:3.0f}%".format(100*n/n_samples), end="\r")
 
         if done:
             start_time = time.time()
             print("Grouping and concatenating ...")
-            all_inputs = _sort_and_groupby(all_inputs, all_outgoings, all_isterminals)
+            all_inputs, all_outgoings, all_isterminals = _sort_and_groupby(all_inputs, all_outgoings, all_isterminals)
             print("Concatenation done in {0}".format(time.time() - start_time))
             return (n_samples,
                 {"inputs": all_inputs, "isterminal": all_isterminals,
