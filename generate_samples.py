@@ -1,6 +1,7 @@
 import os
 import random
 import datetime
+import time
 
 import nibabel as nib
 import numpy as np
@@ -200,9 +201,12 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
 
 
         if done:
+            start_time = time.time()
+            print("Grouping and concatenating ...")
             all_inputs = _sort_and_groupby(all_inputs)
             all_outgoings = _sort_and_groupby(all_outgoings)
             all_isterminals = _sort_and_groupby(all_isterminals)
+            print("Concatenation done in {0}".format(time.time() - start_time))
             return (n_samples,
                 {"inputs": all_inputs, "isterminal": all_isterminals,
                  "outgoing": all_outgoings})

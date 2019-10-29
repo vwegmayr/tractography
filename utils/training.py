@@ -8,10 +8,10 @@ from tensorflow.python.keras.utils import Sequence
 
 from sklearn.metrics import recall_score, precision_score, roc_auc_score
 
+
 class TBSummaries(TensorBoard):
 
-    def __init__(self, *args, eval_seq=None, activations=None,
-        activations_freq=0, **kwargs):
+    def __init__(self, *args, eval_seq=None, activations=None, activations_freq=0, **kwargs):
         super(TBSummaries, self).__init__(*args, **kwargs)
 
         if activations_freq > 0 and activations is None:
@@ -59,7 +59,7 @@ class Samples(Sequence):
         """"""
         self.batch_size = batch_size
         self.istraining = istraining
-        self.samples = np.load(sample_path) # lazy loading
+        self.samples = np.load(sample_path, allow_pickle=True) # lazy loading
         self.n_samples = min(max_n_samples, self.samples["n_samples"])
 
     def __len__(self):
@@ -73,8 +73,7 @@ class FvMSamples(Samples):
 
     def __init__(self, *args, **kwargs):
         super(FvMSamples, self).__init__(*args, **kwargs)
-        print("Loading {} samples...".format("train" if self.istraining
-            else "eval"))
+        print("Loading {} samples...".format("train" if self.istraining else "eval"))
         self.inputs = self.samples["inputs"]
         self.outgoing = self.samples["outgoing"]
 
@@ -82,6 +81,43 @@ class FvMSamples(Samples):
         x_batch = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
         y_batch = self.outgoing[idx*self.batch_size:(idx + 1)*self.batch_size]
         return x_batch, y_batch
+
+
+class RNNSamples(Samples):
+
+    def __init__(self, *args, **kwargs):
+        super(RNNSamples, self).__init__(*args, **kwargs)
+        print("RNNSamples: Loading {} samples...".format("train" if self.istraining else "eval"))
+        self.inputs = self.samples["inputs"]
+        self.outgoing = self.samples["outgoing"]
+
+        # Cut whatever doesn't fit in a batch
+        self.inputs = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size),...] for batch_input in self.inputs])
+        self.outgoing = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size), ...] for batch_input in self.outgoing])
+
+        # To help find the right fiber for the right batch index
+        self.batch_indices = np.cumsum([(fiber.shape[0] // self.batch_size) * fiber.shape[1] for fiber in self.inputs])
+
+    def __getitem__(self, idx):
+        first_possible_input = self.inputs[(idx < self.batch_indices)][0]
+        first_possible_output = self.outgoing[(idx < self.batch_indices)][0]
+        previous_index = np.where((idx < self.batch_indices))[0][0] - 1
+        if previous_index < 0:
+            previous_index = 0
+        else:
+            previous_index = self.batch_indices[previous_index]
+        current_batch_idx = idx - previous_index
+        row_idx = current_batch_idx // first_possible_input.shape[1]
+        col_idx = current_batch_idx % first_possible_input.shape[1]
+
+        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, ...]
+        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, ...]
+
+        reset_state = False
+        if col_idx == 0:
+            reset_state = True
+
+        return x_batch, y_batch, reset_state
 
 
 class FvMHybridSamples(FvMSamples):
@@ -110,16 +146,14 @@ class FvMHybridSamples(FvMSamples):
 
 class FvMSummaries(TBSummaries):
 
-    def __init__(self, *args, activations=["kappa"], activations_freq=1,
-        **kwargs):
+    def __init__(self, *args, activations=["kappa"], activations_freq=1, **kwargs):
         super(FvMSummaries, self).__init__(*args, activations=activations,
             activations_freq=activations_freq, **kwargs)
 
 
 class FvMHybridSummaries(TBSummaries):
 
-    def __init__(self, *args, activations=["kappa", "mu", "isterminal"],
-        activations_freq=1, **kwargs):
+    def __init__(self, *args, activations=["kappa", "mu", "isterminal"], activations_freq=1, **kwargs):
         super(FvMHybridSummaries, self).__init__(*args, activations=activations,
             activations_freq=activations_freq, **kwargs)
 

@@ -31,9 +31,13 @@ def train(model_name,
 
     # Load Model ###############################################################
 
-    input_shape = tuple(np.load(train_path)["input_shape"])
-    model = MODELS[model_name](input_shape)
-    model.keras.summary()
+    input_shape = np.load(train_path, allow_pickle=True)["input_shape"]
+    if input_shape != None:
+        input_shape = tuple(input_shape)
+        model = MODELS[model_name](input_shape)
+    else:
+        model = MODELS[model_name]()
+    # model.keras.summary()
 
     # Run Training #############################################################
     
