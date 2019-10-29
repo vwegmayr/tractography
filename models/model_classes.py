@@ -9,18 +9,40 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 tfd = tfp.distributions
 
 
+def fvm_entropy(kappa):
+    """For d=3"""
+    expk2 = K.exp(- 2 * kappa)
+    return (
+        1 + np.log(2 * np.pi)
+        - 2 * kappa * expk2 / (1 - expk2)
+        + tf.math.log1p(- expk2)
+        - K.log(kappa)
+    )
+
+
+def mean_neg_log_prob(y_true, dist_pred):
+    return -K.mean(dist_pred.log_prob(y_true))
+
+
+def mean_neg_dot_prod(y_true, y_pred):
+    y_pred = K.l2_normalize(y_pred, axis=-1)
+    return -K.mean(K.sum(y_true * y_pred, axis=1))
+
+
+def neg_log_prob(y_true, dist_pred):
+    return -dist_pred.log_prob(y_true)
+
+
+def neg_dot_prod(y_true, y_pred):
+    y_pred = K.l2_normalize(y_pred, axis=-1)
+    return -K.sum(y_true * y_pred, axis=1)
+
+
 class FisherVonMises(tfd.VonMisesFisher):
     """Numerically stable implementation for d=3"""
 
     def _entropy(self):
-        kappa = self.concentration
-        expk2 = K.exp(- 2 * kappa)
-        return (
-            1 + np.log(2 * np.pi)
-            - 2 * kappa * expk2 / (1 - expk2)
-            + tf.math.log1p(- expk2)
-            - K.log(kappa)
-        )
+        return fvm_entropy(self.concentration)
 
     def _mean(self):
         kappa = self.concentration
@@ -33,21 +55,6 @@ class FisherVonMises(tfd.VonMisesFisher):
         expk2 = K.exp(- 2 * kappa)
         return np.log(2*np.pi) + kappa + tf.math.log1p(- expk2) - K.log(kappa)
         
-
-def mean_neg_log_prob(y_true, dist_pred):
-    return -K.mean(dist_pred.log_prob(y_true))
-
-def mean_neg_dot_prod(y_true, y_pred):
-    y_pred = K.l2_normalize(y_pred, axis=-1)
-    return -K.mean(K.sum(y_true * y_pred, axis=1))
-
-def neg_log_prob(y_true, dist_pred):
-    return -dist_pred.log_prob(y_true)
-
-def neg_dot_prod(y_true, y_pred):
-    y_pred = K.l2_normalize(y_pred, axis=-1)
-    return -K.sum(y_true * y_pred, axis=1)
-
 
 class FvM(object):
     """docstring for FvM"""
@@ -171,6 +178,43 @@ class FvMHybrid(object):
         )
 
 
+def fvm_cost(y_true, dist_pred):
+    return - K.sum(dist_pred.mean() * y_true, axis=1)
+
+
+class FvMEntropyRegularizer(tf.keras.regularizers.Regularizer):
+    """docstring for FvMEntropyRegularizer"""
+    def __init__(self, temperature):
+        super(FvMEntropyRegularizer, self).__init__()
+        self.temperature = K.cast_to_floatx(temperature)
+        
+    def __call__(self, kappa):
+        return - self.temperature * K.mean(fvm_entropy(kappa))
+
+    def get_config(self):
+        return {"temperature": float(self.temperature)}
+
+    def set_T(self, T):
+        self.temperature = K.cast_to_floatx(T)
+
+
+class FvMEntropyRegularization(tf.keras.layers.Layer):
+    """"""
+    def __init__(self, temperature, **kwargs):
+        super(FvMEntropyRegularization, self).__init__(
+            activity_regularizer=FvMEntropyRegularizer(temperature), **kwargs)
+        self.supports_masking = True
+        self.temperature = temperature
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        config = {"temperature": self.temperature}
+        base_config = super(FvMEntropyRegularization, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
 class Entrack(FvM):
     """docstring for Entrack"""
     model_name="Entrack"
@@ -188,10 +232,12 @@ class Entrack(FvM):
         )
         return loss_fn
 
-    def __init__(self, *args, T, **kwargs):
+    def __init__(self, *args, temperature, **kwargs):
 
         super(Entrack, self).__init__(*args, **kwargs)
-        self.custom_objects["mean_free_energy"] = self.mean_free_energy(T)
+
+        self.custom_objects["mean_free_energy"] = self.mean_free_energy(
+            temperature)
 
     @staticmethod
     def model_fn(inputs):
@@ -208,12 +254,14 @@ class Entrack(FvM):
         kappa = Dense(1, activation="relu")(kappa)
         kappa = Lambda(lambda t: K.squeeze(t, 1) + 0.001, name="kappa")(kappa)
 
-        return tfp.layers.DistributionLambda(
+        fvm = tfp.layers.DistributionLambda(
             make_distribution_fn=lambda params: FisherVonMises(
                 mean_direction=params[0], concentration=params[1]),
             convert_to_tensor_fn=tfd.Distribution.mean,
             name="fvm"
         )([mu, kappa])
+
+        return fvm
 
     def compile(self, optimizer):
         self.keras.compile(
