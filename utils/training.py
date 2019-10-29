@@ -59,7 +59,7 @@ class Samples(Sequence):
         """"""
         self.batch_size = batch_size
         self.istraining = istraining
-        self.samples = np.load(sample_path, allow_pickle=True) # lazy loading
+        self.samples = np.load(sample_path, allow_pickle=True)  # lazy loading
         self.n_samples = min(max_n_samples, self.samples["n_samples"])
 
     def __len__(self):
@@ -88,19 +88,27 @@ class RNNSamples(Samples):
     def __init__(self, *args, **kwargs):
         super(RNNSamples, self).__init__(*args, **kwargs)
         print("RNNSamples: Loading {} samples...".format("train" if self.istraining else "eval"))
-        self.inputs = self.samples["inputs"]
-        self.outgoing = self.samples["outgoing"]
 
         # Cut whatever doesn't fit in a batch
-        self.inputs = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size),...]
-                                for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size ])
-        self.outgoing = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size), ...]
-                                  for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size])
+        if self.batch_size > 1:
+            self.inputs = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size),...]
+                                    if batch_input.shape[0] > self.batch_size else batch_input
+                                    for batch_input in self.samples["inputs"] ])
+            self.outgoing = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size), ...]
+                                      if batch_input.shape[0] > self.batch_size else batch_input
+                                      for batch_input in self.samples["outgoing"]])
+        self.inputs = np.array([batch_input for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size])
+        self.outgoing = np.array([batch_input for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size])
+
         print("Reduced length of input from {0} to {1} to fit the batch size.".
               format(len(self.samples["inputs"]), len(self.inputs)))
 
         # To help find the right fiber for the right batch index
         self.batch_indices = np.cumsum([(fiber.shape[0] // self.batch_size) * fiber.shape[1] for fiber in self.inputs])
+        self.reset_batches = self._get_reset_batches()
+
+    def __len__(self):
+        return self.batch_indices[-1]
 
     def __getitem__(self, idx):
         first_possible_input = self.inputs[(idx < self.batch_indices)][0]
@@ -114,14 +122,30 @@ class RNNSamples(Samples):
         row_idx = current_batch_idx // first_possible_input.shape[1]
         col_idx = current_batch_idx % first_possible_input.shape[1]
 
-        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, ...]
-        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, ...]
+        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, np.newaxis, ...]
+        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, np.newaxis, ...]
 
         reset_state = False
         if col_idx == 0:
             reset_state = True
 
-        return x_batch, y_batch, reset_state
+        return (x_batch, y_batch)
+
+    def _get_reset_batches(self):
+        """For sure there is a smarter way for this ... :)"""
+        reset_batches = []
+        for idx in range(self.__len__()):
+            first_possible_input = self.inputs[(idx < self.batch_indices)][0]
+            previous_index = np.where((idx < self.batch_indices))[0][0] - 1
+            if previous_index < 0:
+                previous_index = 0
+            else:
+                previous_index = self.batch_indices[previous_index]
+            current_batch_idx = idx - previous_index
+            col_idx = current_batch_idx % first_possible_input.shape[1]
+            if col_idx == 0:
+                reset_batches.append(idx)
+        return np.array(reset_batches)
 
 
 class FvMHybridSamples(FvMSamples):

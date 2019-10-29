@@ -5,6 +5,7 @@ import shutil
 import yaml
 import importlib
 
+from tensorflow.keras import callbacks
 import tensorflow as tf
 import numpy as np
 
@@ -16,6 +17,16 @@ from GPUtil import getFirstAvailable
 from models import MODELS
 from utils import training as T
 
+
+class RNNResetCallBack(callbacks.Callback):
+    def __init__(self, reset_batches):
+        super(RNNResetCallBack, self).__init__()
+        self.reset_batches = reset_batches
+
+    def on_batch_end(self, batch, logs={}):
+        if batch in self.reset_batches:
+            self.model.reset_states()
+        return
 
 def train(model_name,
           train_path,
@@ -32,11 +43,8 @@ def train(model_name,
     # Load Model ###############################################################
 
     input_shape = np.load(train_path, allow_pickle=True)["input_shape"]
-    if input_shape != None:
-        input_shape = tuple(input_shape)
-        model = MODELS[model_name](input_shape)
-    else:
-        model = MODELS[model_name]()
+    input_shape = tuple(input_shape)
+    model = MODELS[model_name](input_shape, batch_size)
     # model.keras.summary()
 
     # Run Training #############################################################
@@ -57,6 +65,9 @@ def train(model_name,
                           factor=0.5,
                           patience=5,
                           min_lr=0.0001)]
+
+    if model_name == 'rnn':
+        callbacks.append(RNNResetCallBack(train_seq.reset_batches))
 
     if eval_path is not None:
         eval_seq = sampler(eval_path,
@@ -87,6 +98,7 @@ def train(model_name,
         optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate)
         model.compile(optimizer)
 
+        do_shuffle = False if model_name == 'rnn' else True
         train_history = model.keras.fit_generator(
             train_seq,
             epochs=epochs,
@@ -94,6 +106,7 @@ def train(model_name,
             callbacks=callbacks,
             max_queue_size=4 * batch_size,
             use_multiprocessing=True,
+            shuffle=do_shuffle,
             workers=cpu_count()
         )
     except KeyboardInterrupt:

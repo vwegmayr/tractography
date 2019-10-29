@@ -3,7 +3,7 @@ import tensorflow_probability as tfp
 
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import (Input, Reshape, Dropout,
-    BatchNormalization, Lambda, Dense)
+    BatchNormalization, Lambda, Dense, GRU)
 
 tfd = tfp.distributions
 
@@ -40,7 +40,7 @@ class FvM(object):
 
     summaries = "FvMSummaries"
         
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, **kwargs):
 
         inputs = Input(shape=input_shape, name="inputs")
 
@@ -92,7 +92,7 @@ class FvMHybrid(object):
     
     summaries = "FvMHybridSummaries"
 
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, **kwargs):
 
         inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)
@@ -148,6 +148,27 @@ class FvMHybrid(object):
 
 class RNNModel(object):
     model_name="RNNModel"
+
     sample_class = "RNNSamples"
 
-    pass
+    def __init__(self, input_shape, batch_size):
+        inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
+        self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
+
+    @staticmethod
+    def model_fn(inputs):
+        hidden_size = [500, 500]  # Fixed
+
+        x = GRU(hidden_size[0], return_sequences=True, stateful=True)(inputs)
+        if len(hidden_size) > 1:
+            for hidden_size in hidden_size[1:-1]:
+                x = GRU(hidden_size, return_sequences=True, stateful=True)(x)
+            x = GRU(hidden_size[-1], return_sequences=True, stateful=True)(x)
+        x = Dense(3, activation='linear', name='output1')(x)  # TODO: This output is not fed to model, make sure it's fine
+        return x
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss={'output1':'mean_squared_error'}
+        )
