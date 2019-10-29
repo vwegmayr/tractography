@@ -8,6 +8,7 @@ import numpy as np
 import yaml
 import argparse
 import itertools
+import copy
 
 from scipy.interpolate import RegularGridInterpolator
 
@@ -132,12 +133,21 @@ def generate_prior_samples(dwi,
             return n_samples, {"inputs": inputs, "outgoing": outgoing}
 
 
-def _sort_and_groupby(all_arrays):
-    sorted_arrays = sorted(all_arrays, key=lambda element: element.shape[0])
-    groups = itertools.groupby(sorted_arrays, key=lambda element: element.shape[0])
-    all_outputs = [np.concatenate([np.array(arr)[np.newaxis, :] for arr in same_length_arrays], axis=0) for
-                   length, same_length_arrays in groups]
-    return all_outputs
+def _sort_and_groupby(all_inputs, all_outputs, all_terminals):
+    all_arrays = zip(all_inputs, all_outputs, all_terminals)
+    sorted_arrays = sorted(all_arrays, key=lambda element: element[0].shape[0])
+    group = itertools.groupby(sorted_arrays, key=lambda element: element[0].shape[0])
+
+    inputs = []
+    outs = []
+    terminals = []
+    for length, same_length_arrays in group:
+        same_length_arrays1, same_length_arrays2, same_length_arrays3 = itertools.tee(same_length_arrays, 3)
+        inputs.append(np.concatenate([np.array(arr[0])[np.newaxis, :] for arr in same_length_arrays1], axis=0))
+        outs.append(np.concatenate([np.array(arr[1])[np.newaxis, :] for arr in same_length_arrays2], axis=0))
+        terminals.append(np.concatenate([np.array(arr[2])[np.newaxis, :] for arr in same_length_arrays3], axis=0))
+
+    return inputs, outs, terminals
 
 
 def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
@@ -192,20 +202,10 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
         all_isterminals.append(isterminal)
         print("Finished {:3.0f}%".format(100*n/n_samples), end="\r")
 
-    # occurrences = collections.Counter(fiber_lengths).most_common()
-    # all_inputs = [np.zeros([occ, length * 2, 3 + 1 + dwi.shape[-1] * block_size ** 3], dtype="float32") for
-    #               length, occ in occurrences]
-    # all_outgoings = [np.zeros([occ, length * 2, 3], dtype="float32") for length, occ in occurrences]
-    # all_isterminals = [np.zeros([occ, length * 2], dtype="float32") for length, occ in occurrences]
-    # assert np.sum([s.shape[0] * s.shape[1] for s in all_isterminals]) == n_samples
-
-
         if done:
             start_time = time.time()
             print("Grouping and concatenating ...")
-            all_inputs = _sort_and_groupby(all_inputs)
-            all_outgoings = _sort_and_groupby(all_outgoings)
-            all_isterminals = _sort_and_groupby(all_isterminals)
+            all_inputs = _sort_and_groupby(all_inputs, all_outgoings, all_isterminals)
             print("Concatenation done in {0}".format(time.time() - start_time))
             return (n_samples,
                 {"inputs": all_inputs, "isterminal": all_isterminals,
