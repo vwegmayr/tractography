@@ -35,6 +35,19 @@ def train(model_name,
 
     # Load Model ###############################################################
 
+    input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
+
+    if "Entrack" in model_name:
+        temperature = T.Temperature(temperature)
+        model = MODELS[model_name](input_shape, temperature)
+    elif "RNN" in model_name:
+        model = MODELS[model_name](input_shape, batch_size=batch_size,
+            loss_weight=loss_weight, T=temperature)
+    else:
+        model = MODELS[model_name](input_shape, loss_weight=loss_weight)
+
+    # Load Sampler #############################################################
+
     sampler = getattr(T, model.sample_class)
 
     train_seq = sampler(
@@ -43,23 +56,19 @@ def train(model_name,
         max_n_samples=max_n_samples
     )
 
-    input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
+    # Load Callbacks ###########################################################
 
     if "Entrack" in model_name:
-        temperature = T.Temperature(temperature)
-        model = MODELS[model_name](input_shape, temperature)
         callbacks = [
             T.HarmonicTemperatureSchedule(
-            temperature=temperature,
-            decay_rate=0.002
+            T_start=temperature,
+            T_end=0.0001,
+            n_steps=len(train_seq)*epochs
             )
         ]
-    if "RNN" in model_name:
-        model = MODELS[model_name](input_shape, batch_size=batch_size,
-            loss_weight=loss_weight, T=temperature)
+    elif "RNN" in model_name:
         callbacks = [T.RNNResetCallBack(train_seq.reset_batches)]
     else:
-        model = MODELS[model_name](input_shape, loss_weight=loss_weight)
         callbacks = []
 
     # Run Training #############################################################
@@ -117,9 +126,9 @@ def train(model_name,
             shuffle=do_shuffle,
             workers=cpu_count()
         )
-    except KeyboardInterrupt:
-        os.rename(out_dir, out_dir + "_stopped")
-        out_dir = out_dir + "_stopped"
+    #except KeyboardInterrupt:
+    #    os.rename(out_dir, out_dir + "_stopped")
+    #    out_dir = out_dir + "_stopped"
     except Exception as e:
         shutil.rmtree(out_dir)
         no_exception = False

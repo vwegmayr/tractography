@@ -1,3 +1,3 @@
-from .model_classes import FvM, FvMHybrid, RNNModel, Entrack
+from .model_classes import FvM, FvMHybrid, RNN, Entrack
 
-MODELS = {"FvM": FvM, "FvMHybrid": FvMHybrid, "rnn": RNNModel, "Entrack": Entrack}
+MODELS = {"FvM": FvM, "FvMHybrid": FvMHybrid, "RNN": RNN, "Entrack": Entrack}

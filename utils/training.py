@@ -309,7 +309,7 @@ class RNNSummaries(TensorBoard):
             writer.flush()
 
 
-class RNNResetCallBack(callbacks.Callback):
+class RNNResetCallBack(Callback):
     def __init__(self, reset_batches):
         super(RNNResetCallBack, self).__init__()
         self.reset_batches = reset_batches
@@ -386,17 +386,17 @@ class PiecewiseConstantTemperatureSchedule(ConstantTemperatureSchedule):
 
 class HarmonicTemperatureSchedule(ConstantTemperatureSchedule):
     """docstring for PiecewiseConstantTemperature"""
-    def __init__(self, temperature, decay_rate=1.0, **kwargs):
-        self.T0 = float(K.get_value(temperature))
-        self.decay_rate = decay_rate
-        super(HarmonicTemperatureSchedule, self).__init__(temperature, **kwargs)
+    def __init__(self, T_start, T_end, n_steps, **kwargs):
+        self.T_start = float(K.get_value(T_start))
+        self.decay_rate = (self.T_start - T_end) / (n_steps * T_end)
+        super(HarmonicTemperatureSchedule, self).__init__(T_start, **kwargs)
 
     def schedule(self, step):
-        return self.T0 / (1 + self.decay_rate * step)
+        return self.T_start / (1 + self.decay_rate * step)
 
     def get_config(self):
         config = super(HarmonicTemperatureSchedule, self).get_config()
         config["decay_rate"] = self.decay_rate
-        config["T0"] = self.T0
+        config["T_start"] = self.T_start
         config["name"] = self.name
         return config
