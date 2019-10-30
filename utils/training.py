@@ -309,6 +309,17 @@ class RNNSummaries(TensorBoard):
             writer.flush()
 
 
+class RNNResetCallBack(callbacks.Callback):
+    def __init__(self, reset_batches):
+        super(RNNResetCallBack, self).__init__()
+        self.reset_batches = reset_batches
+
+    def on_batch_end(self, batch, logs={}):
+        if batch in self.reset_batches:
+            self.model.reset_states()
+        return
+
+
 class Temperature(ResourceVariable):
     """docstring for Temperature"""
     def __init__(self, value, name="temperature"):

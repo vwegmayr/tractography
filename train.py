@@ -20,17 +20,6 @@ from models import MODELS
 from utils import training as T
 
 
-class RNNResetCallBack(callbacks.Callback):
-    def __init__(self, reset_batches):
-        super(RNNResetCallBack, self).__init__()
-        self.reset_batches = reset_batches
-
-    def on_batch_end(self, batch, logs={}):
-        if batch in self.reset_batches:
-            self.model.reset_states()
-        return
-
-
 def train(model_name,
           train_path,
           eval_path,
@@ -68,7 +57,7 @@ def train(model_name,
     if "RNN" in model_name:
         model = MODELS[model_name](input_shape, batch_size=batch_size,
             loss_weight=loss_weight, T=temperature)
-        callbacks = [RNNResetCallBack(train_seq.reset_batches)]
+        callbacks = [T.RNNResetCallBack(train_seq.reset_batches)]
     else:
         model = MODELS[model_name](input_shape, loss_weight=loss_weight)
         callbacks = []

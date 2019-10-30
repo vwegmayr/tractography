@@ -40,7 +40,6 @@ def mean_neg_log_prob(y_true, dist_pred):
     return - K.mean(dist_pred.log_prob(y_true))
 
 
-
 def mean_neg_dot_prod(y_true, y_pred):
     y_pred = K.l2_normalize(y_pred, axis=-1)
     return - K.mean(K.sum(y_true * y_pred, axis=1))
