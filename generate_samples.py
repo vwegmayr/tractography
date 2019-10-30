@@ -64,20 +64,18 @@ def generate_conditional_samples(dwi,
             dnorm = np.linalg.norm(d)
             d /= dnorm
             #-------------------------------------------------------------------
-            vout = tract.data_for_points["t"][i]
-
             if i == 0:
-                vout *= -1
-                vin = -tract.data_for_points["t"][i+1]
+                vout = - tract.data_for_points["t"][i]
+                vin = - tract.data_for_points["t"][i+1]
             else:
+                vout = tract.data_for_points["t"][i]
                 vin = tract.data_for_points["t"][i-1]
-
             inputs[n] = np.hstack([vin, d, dnorm])
             outgoing[n] = vout
             if i in [0, last_pt]:
                 isterminal[n] = 1
             n += 1
-
+            #-------------------------------------------------------------------
             if i not in [0, last_pt]:
                 inputs[n] = np.hstack([-vin, d, dnorm])
                 outgoing[n] = -vout

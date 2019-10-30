@@ -1,12 +1,14 @@
 import numpy as np
 
+from matplotlib import pyplot as plt
+
 from tensorflow.python.eager import context
 from tensorflow.python.ops import summary_ops_v2
 from tensorflow.python.keras.callbacks import TensorBoard
 from tensorflow.python.keras import Model
 from tensorflow.python.keras.utils import Sequence
 
-from sklearn.metrics import recall_score, precision_score, roc_auc_score
+from sklearn.metrics import precision_recall_curve, average_precision_score
 
 
 class TBSummaries(TensorBoard):
@@ -162,9 +164,17 @@ class FvMHybridSamples(FvMSamples):
         fvm_sample_weights = 1.0 - isterminal
         fvm_sample_weights /= np.sum(fvm_sample_weights)
 
-        isterminal_sample_weights = (1.0 - isterminal) + isterminal * 30.0 
-        isterminal_sample_weights /= np.sum(isterminal_sample_weights)
+        n_terminal = np.sum(isterminal)
 
+        if n_terminal > 0:
+            isterminal_sample_weights = (
+                isterminal*np.sum(1-isterminal) + (1-isterminal)*np.sum(isterminal)
+            )
+            isterminal_sample_weights /= np.sum(isterminal_sample_weights)
+        else:
+            isterminal_sample_weights = (
+                (1 - isterminal) / (2 * self.batch_size * 0.975)
+            )
         return (
             inputs,
             {"fvm": outgoing, "isterminal": isterminal},
@@ -222,12 +232,25 @@ class FvMHybridSummaries(TBSummaries):
                 np.mean(neg_dot_prod_terminal), step=epoch)
             # ==================================================================
             isterminal = activation_values[2]
-            precision = precision_score(self.eval_seq.isterminal, isterminal > 0.5)
-            recall = recall_score(self.eval_seq.isterminal, isterminal > 0.5)
-            roc_auc = roc_auc_score(self.eval_seq.isterminal, isterminal)
-            # ------------------------  ------------------------------------------
-            summary_ops_v2.scalar("terminal_precision", precision, step=epoch)
-            summary_ops_v2.scalar("terminal_recall", recall, step=epoch)
-            summary_ops_v2.scalar("terminal_roc_auc", recall, step=epoch)
+            ave_prec = average_precision_score(self.eval_seq.isterminal, isterminal)
+            summary_ops_v2.scalar("average_precision", ave_prec, step=epoch)
+            # ------------------------------------------------------------------
+            precision, recall, thresh = precision_recall_curve(
+                y_true=self.eval_seq.isterminal,
+                probas_pred=np.round(isterminal / 0.05) * 0.05
+            )
+            # ------------------------------------------------------------------
+            fig, ax = plt.subplots()
+            ax.plot(recall, precision, "-o")
+            frac = np.mean(self.eval_seq.isterminal)
+            ax.plot([0,1],[frac, frac])
+            ax.set_xlabel("Recall")
+            ax.set_ylabel("Precision")
+            fig.canvas.draw()
+            # ------------------------------------------------------------------
+            plot = np.array(fig.canvas.renderer.buffer_rgba())
+            plot = np.expand_dims(plot, 0)
+            summary_ops_v2.image("Precision-Recall", plot, step=epoch)
             # ==================================================================
+            plt.close()
             writer.flush()

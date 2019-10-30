@@ -3,6 +3,7 @@ import yaml
 import gc
 import argparse
 import datetime
+import logging
 
 import nibabel as nib
 import numpy as np
@@ -22,15 +23,6 @@ from sklearn.preprocessing import normalize
 from time import time
 
 from models import MODELS
-
-os.environ['PYTHONHASHSEED'] = '0'
-tf.compat.v1.set_random_seed(42)
-np.random.seed(42)
-try:
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
-        order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
-except Exception as e:
-    print(str(e))
 
 
 class MarginHandler(object):
@@ -95,7 +87,19 @@ def run_inference(
     out_dir
 ):
     """"""
-    
+    os.environ['PYTHONHASHSEED'] = '0'
+    tf.compat.v1.set_random_seed(42)
+    np.random.seed(42)
+
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
+    logging.getLogger('tensorflow').setLevel(logging.ERROR)
+
+    try:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
+            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
+    except Exception as e:
+        print(str(e))
+
     print("Loading DWI...") ####################################################
     
     dwi_img = nib.load(dwi_path)
@@ -147,6 +151,7 @@ def run_inference(
     block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
 
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
+    dnorm = np.zeros([n_seeds, 1])
     vout = np.zeros([n_seeds, 3])
     for i in range(max_steps):
         t0 = time()
@@ -159,12 +164,14 @@ def run_inference(
             d[ii] = dwi[idx[0] - (block_size // 2) : idx[0] + (block_size // 2) + 1,
                         idx[1] - (block_size // 2) : idx[1] + (block_size // 2) + 1,
                         idx[2] - (block_size // 2) : idx[2] + (block_size // 2) + 1,
-                    :].flatten()
-        
+                    :].flatten() # returns copy
+            dnorm[ii] = np.linalg.norm(d[ii])
+            d[ii] /= dnorm[ii]
+
         if i == 0:
-            inputs = np.hstack([prior(xyz[:,0,:]), d[:n_ongoing]])
+            inputs = np.hstack([prior(xyz[:,0,:]), d[:n_ongoing], dnorm[:n_ongoing]])
         else:
-            inputs = np.hstack([vout[:n_ongoing], d[:n_ongoing]])
+            inputs = np.hstack([vout[:n_ongoing], d[:n_ongoing], dnorm[:n_ongoing]])
 
         chunk = 2**15 # 32768
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
