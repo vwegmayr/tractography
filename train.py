@@ -6,6 +6,7 @@ import yaml
 import importlib
 import logging
 
+from tensorflow.keras import callbacks
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import backend as K
@@ -17,6 +18,17 @@ from GPUtil import getFirstAvailable
 
 from models import MODELS
 from utils import training as T
+
+
+class RNNResetCallBack(callbacks.Callback):
+    def __init__(self, reset_batches):
+        super(RNNResetCallBack, self).__init__()
+        self.reset_batches = reset_batches
+
+    def on_batch_end(self, batch, logs={}):
+        if batch in self.reset_batches:
+            self.model.reset_states()
+        return
 
 
 def train(model_name,
@@ -34,7 +46,15 @@ def train(model_name,
 
     # Load Model ###############################################################
 
-    input_shape = tuple(np.load(train_path)["input_shape"])
+    sampler = getattr(T, model.sample_class)
+
+    train_seq = sampler(
+        train_path,
+        batch_size,
+        max_n_samples=max_n_samples
+    )
+
+    input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
 
     if "Entrack" in model_name:
         temperature = T.Temperature(temperature)
@@ -45,6 +65,10 @@ def train(model_name,
             decay_rate=0.002
             )
         ]
+    if "RNN" in model_name:
+        model = MODELS[model_name](input_shape, batch_size=batch_size,
+            loss_weight=loss_weight, T=temperature)
+        callbacks = [RNNResetCallBack(train_seq.reset_batches)]
     else:
         model = MODELS[model_name](input_shape, loss_weight=loss_weight)
         callbacks = []
@@ -55,13 +79,6 @@ def train(model_name,
     out_dir = os.path.join(out_dir, model_name, suffix, timestamp)
     os.makedirs(out_dir, exist_ok=True)
 
-    sampler = getattr(T, model.sample_class)
-
-    train_seq = sampler(
-        train_path,
-        batch_size,
-        max_n_samples=max_n_samples
-    )
     callbacks.append(ReduceLROnPlateau(monitor='val_loss',
                           factor=0.5,
                           patience=5,
@@ -100,6 +117,7 @@ def train(model_name,
         optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate)
         model.compile(optimizer)
 
+        do_shuffle = False if model_name == 'rnn' else True
         train_history = model.keras.fit_generator(
             train_seq,
             epochs=epochs,
@@ -107,6 +125,7 @@ def train(model_name,
             callbacks=callbacks,
             max_queue_size=4 * batch_size,
             use_multiprocessing=True,
+            shuffle=do_shuffle,
             workers=cpu_count()
         )
     except KeyboardInterrupt:

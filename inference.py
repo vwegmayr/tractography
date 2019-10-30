@@ -101,13 +101,13 @@ def run_inference(
         print(str(e))
 
     print("Loading DWI...") ####################################################
-    
+
     dwi_img = nib.load(dwi_path)
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
     dwi = dwi_img.get_data()
-    
+
     def xyz2ijk(coords, snap=False):
         ijk = (coords.T).copy()
         dwi_affi.dot(ijk, out=ijk)
@@ -117,21 +117,24 @@ def run_inference(
             return ijk.T
 
     print("Loading Models...") #################################################
-    
+
     config_path = os.path.join(os.path.dirname(model_path), "config.yml")
-    
+
     with open(config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
 
-    model = load_model(model_path,
-                       custom_objects=MODELS[model_name].custom_objects)
-    
+    if hasattr(MODELS[model_name], "custom_objects"):
+        model = load_model(model_path,
+                           custom_objects=MODELS[model_name].custom_objects)
+    else:
+        model = load_model(model_path)
+
     terminator = Terminator(term_path, thresh)
-    
+
     prior = Prior(prior_path)
 
     print("Initializing Fibers...") ############################################
-    
+
     seed_file = nib.streamlines.load(seed_path)
     xyz = seed_file.tractogram.streamlines.data
     n_seeds = 2 * len(xyz)
@@ -155,8 +158,8 @@ def run_inference(
     vout = np.zeros([n_seeds, 3])
     for i in range(max_steps):
         t0 = time()
-        
-        ijk = xyz2ijk(xyz[:,-1,:], snap=True) # Get coords of latest segement for each fiber 
+
+        ijk = xyz2ijk(xyz[:,-1,:], snap=True)  # Get coords of latest segement for each fiber
 
         n_ongoing = len(ijk)
 
@@ -182,12 +185,12 @@ def run_inference(
             elif predict_fn == "sample":
                 v = model(inputs[c * chunk : (c + 1) * chunk]).sample().numpy()
             vout[c * chunk : (c + 1) * chunk] = v
-           
+
         rout = xyz[:, -1, :3] + step_size * vout
         rout = np.hstack([rout, np.ones((n_ongoing, 1))]).reshape(-1, 1, 4)
-        
+
         xyz = np.concatenate([xyz, rout], axis=1)
-        
+
         terminal_indices = terminator(xyz[:, -1, :])
 
         for idx in terminal_indices:
@@ -203,25 +206,25 @@ def run_inference(
                     np.flip(this_end[1:], axis=0),
                     other_end]) # stitch ends together
                 fibers[gidx] = [merged_fiber]
-                
+
         xyz = np.delete(xyz, terminal_indices, axis=0)
         vout = np.delete(vout, terminal_indices, axis=0)
         fiber_idx = np.delete(fiber_idx, terminal_indices)
-        
+
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
             " {:6.0f} steps/sec".format(
             (i+1), max_steps, n_seeds-n_ongoing, n_seeds,
             100*(1-n_ongoing/n_seeds), n_ongoing / (time() - t0)),
             end="\r"
         )
-        
+
         if n_ongoing == 0:
             break
-        
+
         gc.collect()
-    
+
     # Include unfinished fibers:
-    
+
     for idx, gidx in enumerate(fiber_idx):
         if not fibers[gidx]:
             fibers[gidx].append(xyz[idx, :, :3])
@@ -230,16 +233,16 @@ def run_inference(
             other_end = fibers[gidx][0]
             merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
             fibers[gidx] = [merged_fiber]
-    
+
     # Save Result
-    
+
     fibers = [f[0] for f in fibers]
-    
+
     tractogram = Tractogram(
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
-    
+
     if out_dir is None:
         out_dir = os.path.dirname(dwi_path)
 
@@ -268,8 +271,217 @@ def run_inference(
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
-        yaml.dump(config, file, default_flow_style=False) 
-    
+        yaml.dump(config, file, default_flow_style=False)
+
+    return tractogram
+
+
+def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, step_size):
+
+    n_seeds = len(xyz)
+    fiber_idx = np.hstack([
+        np.arange(n_seeds//2, dtype="int32"),
+        np.arange(n_seeds//2,  dtype="int32")
+    ])
+    fibers = [[] for _ in range(n_seeds//2)]
+
+    def xyz2ijk(coords, snap=False):
+        ijk = (coords.T).copy()
+        dwi_affi.dot(ijk, out=ijk)
+        if snap:
+            return np.round(ijk, out=ijk).astype(int, copy=False).T
+        else:
+            return ijk.T
+
+    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
+    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
+
+    d = np.zeros([n_seeds, dwi.shape[-1] * block_size ** 3])
+    dnorm = np.zeros([n_seeds, 1])
+    vout = np.zeros([n_seeds, 3])
+    already_terminated = np.empty(0)
+    n_ongoing = n_seeds
+    for i in range(max_steps):
+        t0 = time()
+
+        ijk = xyz2ijk(xyz[:, -1, :], snap=True)  # Get coords of latest segement for each fiber
+
+        for ii, idx in enumerate(ijk):
+            d[ii] = dwi[idx[0] - (block_size // 2): idx[0] + (block_size // 2) + 1,
+                    idx[1] - (block_size // 2): idx[1] + (block_size // 2) + 1,
+                    idx[2] - (block_size // 2): idx[2] + (block_size // 2) + 1,
+                    :].flatten()  # returns copy
+            dnorm[ii] = np.linalg.norm(d[ii]) + 0.0000000001
+            d[ii] /= dnorm[ii]
+
+        if i == 0:
+            inputs = np.hstack([prior(xyz[:, 0, :]), d[:n_seeds], dnorm[:n_seeds]])
+        else:
+            inputs = np.hstack([vout[:n_seeds], d[:n_seeds], dnorm[:n_seeds]])
+
+        vout = model.predict(inputs[:, np.newaxis, :]).squeeze()
+
+        rout = xyz[:, -1, :3] + step_size * vout
+        rout = np.hstack([rout, np.ones((n_seeds, 1))]).reshape(-1, 1, 4)
+
+        xyz = np.concatenate([xyz, rout], axis=1)
+
+        terminal_indices = terminator(xyz[:, -1, :])
+        terminal_indices = [x for x in terminal_indices if x not in already_terminated]
+        for idx in terminal_indices:
+            gidx = fiber_idx[idx]
+            # Other end not yet added
+            if not fibers[gidx]:
+                fibers[gidx].append(np.copy(xyz[idx, :, :3]))
+            # Other end already added
+            else:
+                this_end = xyz[idx, :, :3]
+                other_end = fibers[gidx][0]
+                merged_fiber = np.vstack([
+                    np.flip(this_end[1:], axis=0),
+                    other_end])  # stitch ends together
+                fibers[gidx] = [merged_fiber]
+
+            n_ongoing = n_ongoing - 1
+        already_terminated = np.concatenate(
+            [already_terminated, np.array([x for x in terminal_indices if x not in already_terminated])])  # Just to make sure, we already keep them out though!
+
+        print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
+              " {:6.0f} steps/sec".format(
+            (i + 1), max_steps, n_seeds - n_ongoing, n_seeds,
+                                100 * (1 - n_ongoing / n_seeds), n_ongoing / (time() - t0)),
+            end="\r"
+        )
+
+        if n_ongoing == 0:
+            break
+
+        gc.collect()
+
+    # Include unfinished fibers:
+    for idx, gidx in enumerate(fiber_idx):
+        if not fibers[gidx]:
+            fibers[gidx].append(xyz[idx, :, :3])
+        else:
+            this_end = xyz[idx, :, :3]
+            other_end = fibers[gidx][0]
+            merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
+            fibers[gidx] = [merged_fiber]
+
+    return fibers
+
+
+def run_rnn_inference(
+        model_path,
+        dwi_path,
+        prior_path,
+        seed_path,
+        term_path,
+        thresh,
+        predict_fn,
+        step_size,
+        max_steps,
+        out_dir
+):
+    """"""
+    os.environ['PYTHONHASHSEED'] = '0'
+    tf.compat.v1.set_random_seed(42)
+    np.random.seed(42)
+
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
+    logging.getLogger('tensorflow').setLevel(logging.ERROR)
+
+    try:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
+            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
+    except Exception as e:
+        print(str(e))
+
+    print("Loading DWI...")  ####################################################
+
+    dwi_img = nib.load(dwi_path)
+    dwi_img = nib.funcs.as_closest_canonical(dwi_img)
+    dwi_aff = dwi_img.affine
+    dwi_affi = np.linalg.inv(dwi_aff)
+    dwi = dwi_img.get_data()
+
+    print("Loading Models...")  #################################################
+
+    config_path = os.path.join(os.path.dirname(model_path), "config.yml")
+
+    with open(config_path, "r") as config_file:
+        model_name = yaml.load(config_file)["model_name"]
+
+    if hasattr(MODELS[model_name], "custom_objects"):
+        model = load_model(model_path,
+                           custom_objects=MODELS[model_name].custom_objects)
+    else:
+        model = load_model(model_path)
+
+    terminator = Terminator(term_path, thresh)
+
+    prior = Prior(prior_path)
+
+    print("Initializing Fibers...")  ############################################
+
+    seed_file = nib.streamlines.load(seed_path)
+    xyz = seed_file.tractogram.streamlines.data
+    n_seeds = len(xyz)
+    fibers = [[] for _ in range(n_seeds)]
+
+    ## MY THING HERE:
+    batch_size = 5
+    for i in range(0, n_seeds, batch_size):
+        print("Batch {0} finished".format(i))
+        xyz_batch = xyz[i:i + batch_size]
+
+        n_seeds_batch = 2 * len(xyz_batch)
+        xyz_batch = np.vstack([xyz_batch, xyz_batch])  # Duplicate seeds for both directions
+        xyz_batch = np.hstack([xyz_batch, np.ones([n_seeds_batch, 1])])  # add affine dimension
+        xyz_batch = xyz_batch.reshape(-1, 1, 4)  # (fiber, segment, coord)
+
+        model.reset_states()
+        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator, model, dwi, dwi_affi, max_steps, step_size)
+        fibers[i:i+batch_size] = batch_fibers
+
+    # Save Result
+    fibers = [f[0] for f in fibers]
+
+    tractogram = Tractogram(
+        streamlines=ArraySequence(fibers),
+        affine_to_rasmm=np.eye(4)
+    )
+
+    if out_dir is None:
+        out_dir = os.path.dirname(dwi_path)
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+
+    out_dir = os.path.join(out_dir, "predicted_fibers", timestamp)
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    fiber_path = os.path.join(out_dir, "fibers.trk")
+    print("\nSaving {}".format(fiber_path))
+    TrkFile(tractogram, seed_file.header).save(fiber_path)
+
+    config = dict(
+        model_path=model_path,
+        dwi_path=dwi_path,
+        prior_path=prior_path,
+        seed_path=seed_path,
+        term_path=term_path,
+        thresh=thresh,
+        predict_fn=predict_fn,
+        step_size=step_size,
+        max_steps=max_steps
+    )
+
+    config_path = os.path.join(out_dir, "config.yml")
+    print("Saving {}".format(config_path))
+    with open(config_path, "w") as file:
+        yaml.dump(config, file, default_flow_style=False)
+
     return tractogram
 
 

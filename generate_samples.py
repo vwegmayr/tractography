@@ -1,11 +1,14 @@
 import os
 import random
 import datetime
+import time
 
 import nibabel as nib
 import numpy as np
 import yaml
 import argparse
+import itertools
+import copy
 
 from scipy.interpolate import RegularGridInterpolator
 
@@ -128,6 +131,108 @@ def generate_prior_samples(dwi,
             return n_samples, {"inputs": inputs, "outgoing": outgoing}
 
 
+def _sort_and_groupby(all_inputs, all_outputs, all_terminals):
+    all_arrays = zip(all_inputs, all_outputs, all_terminals)
+    sorted_arrays = sorted(all_arrays, key=lambda element: element[0].shape[0])
+    group = itertools.groupby(sorted_arrays, key=lambda element: element[0].shape[0])
+
+    inputs = []
+    outs = []
+    terminals = []
+    for length, same_length_arrays in group:
+        same_length_arrays1, same_length_arrays2, same_length_arrays3 = itertools.tee(same_length_arrays, 3)
+        inputs.append(np.concatenate([np.array(arr[0])[np.newaxis, :] for arr in same_length_arrays1], axis=0))
+        outs.append(np.concatenate([np.array(arr[1])[np.newaxis, :] for arr in same_length_arrays2], axis=0))
+        terminals.append(np.concatenate([np.array(arr[2])[np.newaxis, :] for arr in same_length_arrays3], axis=0))
+
+    return inputs, outs, terminals
+
+
+def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
+
+    fiber_lengths = [len(f) - 1 for f in tracts]
+    n_samples = min(2*np.sum(fiber_lengths), n_samples)
+
+    #===========================================================================
+    all_inputs = []
+    all_outgoings = []
+    all_isterminals = []
+    done=False
+    n = 0
+    for tract in tracts:
+        tract_n_samples = min((len(tract.streamline) - 1), (n_samples - n) // 2) # TODO: Check it's fine
+
+        inputs = np.zeros([tract_n_samples, 3 + 1 + dwi.shape[-1] * block_size ** 3], dtype="float32")
+        outgoing = np.zeros([tract_n_samples, 3], dtype="float32")
+        isterminal = np.zeros(tract_n_samples, dtype="float32")
+
+        reverse_inputs = np.zeros([tract_n_samples, 3 + 1 + dwi.shape[-1] * block_size ** 3], dtype="float32")
+        reverse_outgoing = np.zeros([tract_n_samples, 3], dtype="float32")
+        reverse_isterminal = np.zeros(tract_n_samples, dtype="float32")
+
+        last_pt = tract_n_samples
+        for i, pt in enumerate(tract.streamline):
+            #-------------------------------------------------------------------
+            idx = dwi_xyz2ijk(pt)
+            d = interpolate(idx, dwi, block_size)
+            dnorm = np.linalg.norm(d)
+            d /= dnorm
+            #-------------------------------------------------------------------
+
+            if i == 0:  # First is only used as the end point of the reverse direction
+                vout = - tract.data_for_points["t"][i]
+                vin = - tract.data_for_points["t"][i + 1]
+
+                reverse_inputs[tract_n_samples - 1 - i] = np.hstack([-vin, d, dnorm])
+                reverse_outgoing[tract_n_samples - 1 - i] = -vout
+                reverse_isterminal[tract_n_samples - 1 - i] = 1
+                n += 1
+
+            elif i == last_pt: # Last is only used as the last point of usual direction
+                vout = tract.data_for_points["t"][i]
+                vin = tract.data_for_points["t"][i - 1]
+
+                inputs[i - 1] = np.hstack([vin, d, dnorm])
+                outgoing[i - 1] = vout
+                isterminal[i - 1] = 1
+                n += 1
+            else:  # Other points are used in both direction
+                vout = tract.data_for_points["t"][i]
+                vin = tract.data_for_points["t"][i - 1]
+
+                inputs[i - 1] = np.hstack([vin, d, dnorm])
+                outgoing[i - 1] = vout
+                n += 1
+
+                reverse_inputs[tract_n_samples - 1 - i] = np.hstack([-vin, d, dnorm])
+                reverse_outgoing[tract_n_samples - 1 - i] = -vout
+                n += 1
+
+
+
+            #-------------------------------------------------------------------
+            if n == n_samples:
+                done = True
+                break
+
+        all_inputs.append(inputs)
+        all_outgoings.append(outgoing)
+        all_isterminals.append(isterminal)
+        all_inputs.append(reverse_inputs)
+        all_outgoings.append(reverse_outgoing)
+        all_isterminals.append(reverse_isterminal)
+        print("Finished {:3.0f}%".format(100*n/n_samples), end="\r")
+
+        if done:
+            start_time = time.time()
+            print("Grouping and concatenating ...")
+            all_inputs, all_outgoings, all_isterminals = _sort_and_groupby(all_inputs, all_outgoings, all_isterminals)
+            print("Concatenation done in {0}".format(time.time() - start_time))
+            return (n_samples,
+                {"inputs": all_inputs, "isterminal": all_isterminals,
+                 "outgoing": all_outgoings})
+
+
 def generate_samples(dwi_path,
                      trk_path,
                      model,
@@ -156,13 +261,17 @@ def generate_samples(dwi_path,
     elif model == "prior":
         n_samples, samples = generate_prior_samples(dwi, tracts, dwi_xyz2ijk,
             block_size, n_samples)
+    elif model == "rnn":
+        n_samples, samples = generate_rnn_samples(dwi, tracts,
+            dwi_xyz2ijk, block_size, n_samples)
     #===========================================================================
-    np.random.seed(42)
-    perm = np.random.permutation(n_samples)
-    for k, v in samples.items():
-        assert not np.isnan(v).any()
-        assert not np.isinf(v).any()
-        samples[k] = v[perm]
+    if model != "rnn":
+        np.random.seed(42)
+        perm = np.random.permutation(n_samples)
+        for k, v in samples.items():
+            assert not np.isnan(v).any()
+            assert not np.isinf(v).any()
+            samples[k] = v[perm]
     #===========================================================================
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     if out_dir is None:
@@ -172,9 +281,10 @@ def generate_samples(dwi_path,
 
     sample_path = os.path.join(out_dir, "samples.npz")
     print("\nSaving {}".format(sample_path))
+    input_shape = (1, samples["inputs"][0].shape[-1]) if model == 'rnn' else samples["inputs"].shape[1:]
     np.savez_compressed(
         sample_path,
-        input_shape=samples["inputs"].shape[1:],
+        input_shape=input_shape,
         n_samples=n_samples,
         **samples)
     
@@ -203,7 +313,7 @@ if __name__ == '__main__':
     parser.add_argument("trk_path", help="Path to TRK file")
 
     parser.add_argument("--model", default="conditional",
-        choices=["conditional", "prior"],
+        choices=["conditional", "prior", "rnn"],
         help="Which model to generate samples for.")
 
     parser.add_argument("--block_size", help="Size of cubic neighborhood.",
