@@ -8,6 +8,7 @@ import logging
 
 import tensorflow as tf
 import numpy as np
+from tensorflow.keras import backend as K
 
 from tensorflow.keras.callbacks import (TensorBoard, ModelCheckpoint,
     ReduceLROnPlateau, Callback)
@@ -31,15 +32,22 @@ def train(model_name,
           temperature,
           out_dir):
 
-
     # Load Model ###############################################################
 
     input_shape = tuple(np.load(train_path)["input_shape"])
+
     if "Entrack" in model_name:
-        model = MODELS[model_name](input_shape, loss_weight=loss_weight, T=temperature)
+        temperature = T.Temperature(temperature)
+        model = MODELS[model_name](input_shape, temperature)
+        callbacks = [
+            T.HarmonicTemperatureSchedule(
+            temperature=temperature,
+            decay_rate=0.002
+            )
+        ]
     else:
         model = MODELS[model_name](input_shape, loss_weight=loss_weight)
-    model.keras.summary()
+        callbacks = []
 
     # Run Training #############################################################
     
@@ -54,12 +62,11 @@ def train(model_name,
         batch_size,
         max_n_samples=max_n_samples
     )
-
-    callbacks = [ReduceLROnPlateau(monitor='val_loss',
+    callbacks.append(ReduceLROnPlateau(monitor='val_loss',
                           factor=0.5,
                           patience=5,
-                          min_lr=0.0001)]
-
+                          min_lr=0.0001)
+    )
     if eval_path is not None:
         eval_seq = sampler(
             eval_path,
@@ -70,11 +77,12 @@ def train(model_name,
                 os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
                 save_best_only=True,
                 save_weights_only=False,
-                period=5)
+                period=1)
         )
     else:
         eval_seq = None
 
+    # Put Tensorboard callback at the end to catch logs from previous callbacks
     if hasattr(model, "summaries"):
         callbacks.append(
             getattr(T, model.summaries)(
@@ -125,7 +133,7 @@ def train(model_name,
                 config["temperature"] = str(temperature)
 
             config_path = os.path.join(out_dir, "config" + ".yml")
-            print("Saving {}".format(config_path))
+            print("\nSaving {}".format(config_path))
             with open(config_path, "w") as file:
                 yaml.dump(config, file, default_flow_style=False)
 

@@ -20,12 +20,16 @@ def fvm_entropy(kappa):
     )
 
 
-def fvm_cost(y_true, dist_pred):
-    return - K.sum(dist_pred.mean() * y_true, axis=1)
-
-
 def mean_fvm_entropy(kappa):
     return K.mean(fvm_entropy(kappa))
+
+
+def mean_neg_fvm_entropy(_, kappa):
+    return - mean_fvm_entropy(kappa)
+
+
+def fvm_cost(y_true, dist_pred):
+    return - K.sum(dist_pred.mean() * y_true, axis=1)
 
 
 def mean_fvm_cost(y_true, dist_pred):
@@ -194,16 +198,16 @@ class Entrack(FvM):
     """docstring for Entrack"""
     model_name="Entrack"
 
+    sample_class = "EntrackSamples"
+
     custom_objects = {
             "mean_fvm_cost": mean_fvm_cost,
-            "mean_fvm_entropy": mean_fvm_entropy,
+            "mean_neg_fvm_entropy": mean_neg_fvm_entropy,
             "mean_neg_dot_prod": mean_neg_dot_prod,
             "DistributionLambda": tfp.layers.DistributionLambda
         }
 
-    def __init__(self, input_shape, temperature, *args, loss_weight=None, **kwargs):
-
-        super(Entrack, self).__init__(*args, **kwargs)
+    def __init__(self, input_shape, temperature):
 
         inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)
@@ -254,10 +258,8 @@ class Entrack(FvM):
             optimizer=optimizer,
             loss={
                 "fvm": self.custom_objects["mean_fvm_cost"],
-                "kappa" self.custom_objects["mean_fvm_entropy"]:
+                "kappa": self.custom_objects["mean_neg_fvm_entropy"]
             },
-            loss_weights={"fvm": 1.0, "kappa": -self.temperature},
+            loss_weights={"fvm": 1.0, "kappa": self.temperature},
             metrics={"fvm": self.custom_objects["mean_neg_dot_prod"]}
         )
-
-# TODO: Write callback for temperature schedule with K.variable

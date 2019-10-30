@@ -4,11 +4,89 @@ from matplotlib import pyplot as plt
 
 from tensorflow.python.eager import context
 from tensorflow.python.ops import summary_ops_v2
-from tensorflow.python.keras.callbacks import TensorBoard
-from tensorflow.python.keras import Model
-from tensorflow.python.keras.utils import Sequence
+from tensorflow.python.keras.callbacks import TensorBoard, Callback
+from tensorflow.keras import Model
+from tensorflow.keras.utils import Sequence
+from tensorflow.keras import backend as K
+from tensorflow.python.ops.resource_variable_ops import ResourceVariable
 
 from sklearn.metrics import precision_recall_curve, average_precision_score
+
+
+class Samples(Sequence):
+    def __init__(self,
+                 sample_path,
+                 batch_size=256,
+                 istraining=True,
+                 max_n_samples=np.inf):
+        """"""
+        self.batch_size = batch_size
+        self.istraining = istraining
+        self.samples = np.load(sample_path) # lazy loading
+        self.n_samples = min(max_n_samples, self.samples["n_samples"])
+
+    def __len__(self):
+        if self.istraining:
+            return self.n_samples // self.batch_size  # drop remainder
+        else:
+            return np.ceil(self.n_samples / self.batch_size).astype(int)
+
+
+class FvMSamples(Samples):
+
+    def __init__(self, *args, **kwargs):
+        super(FvMSamples, self).__init__(*args, **kwargs)
+        print("Loading {} samples...".format("train" if self.istraining
+            else "eval"))
+        self.inputs = self.samples["inputs"]
+        self.outgoing = self.samples["outgoing"]
+
+    def __getitem__(self, idx):
+        x_batch = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
+        y_batch = self.outgoing[idx*self.batch_size:(idx + 1)*self.batch_size]
+        return x_batch, y_batch
+
+
+class EntrackSamples(FvMSamples):
+    """docstring for EntrackSamples"""
+    
+    def __getitem__(self, idx):
+        inputs, outgoing = super(EntrackSamples, self).__getitem__(idx)
+        
+        return inputs, {"fvm": outgoing, "kappa": np.zeros(len(outgoing))}
+
+
+class FvMHybridSamples(FvMSamples):
+
+    def __init__(self, *args, **kwargs):
+        super(FvMHybridSamples, self).__init__(*args, **kwargs)
+        self.isterminal = self.samples["isterminal"]
+
+    def __getitem__(self, idx):
+        inputs = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
+        outgoing = self.outgoing[idx*self.batch_size:(idx + 1)*self.batch_size]
+        isterminal = self.isterminal[idx*self.batch_size:(idx + 1)*self.batch_size]
+
+        fvm_sample_weights = 1.0 - isterminal
+        fvm_sample_weights /= np.sum(fvm_sample_weights)
+
+        n_terminal = np.sum(isterminal)
+
+        if n_terminal > 0:
+            isterminal_sample_weights = (
+                isterminal*np.sum(1-isterminal) + (1-isterminal)*np.sum(isterminal)
+            )
+            isterminal_sample_weights /= np.sum(isterminal_sample_weights)
+        else:
+            isterminal_sample_weights = (
+                (1 - isterminal) / (2 * self.batch_size * 0.975)
+            )
+        return (
+            inputs,
+            {"fvm": outgoing, "isterminal": isterminal},
+            {"fvm": fvm_sample_weights, "isterminal": isterminal_sample_weights}
+        )
+
 
 class TBSummaries(TensorBoard):
 
@@ -50,72 +128,6 @@ class TBSummaries(TensorBoard):
                 summary_ops_v2.scalar(name+"_mean",
                     np.mean(values), step=epoch)
             writer.flush()
-
-
-class Samples(Sequence):
-    def __init__(self,
-                 sample_path,
-                 batch_size=256,
-                 istraining=True,
-                 max_n_samples=np.inf):
-        """"""
-        self.batch_size = batch_size
-        self.istraining = istraining
-        self.samples = np.load(sample_path) # lazy loading
-        self.n_samples = min(max_n_samples, self.samples["n_samples"])
-
-    def __len__(self):
-        if self.istraining:
-            return self.n_samples // self.batch_size  # drop remainder
-        else:
-            return np.ceil(self.n_samples / self.batch_size).astype(int)
-
-
-class FvMSamples(Samples):
-
-    def __init__(self, *args, **kwargs):
-        super(FvMSamples, self).__init__(*args, **kwargs)
-        print("Loading {} samples...".format("train" if self.istraining
-            else "eval"))
-        self.inputs = self.samples["inputs"]
-        self.outgoing = self.samples["outgoing"]
-
-    def __getitem__(self, idx):
-        x_batch = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
-        y_batch = self.outgoing[idx*self.batch_size:(idx + 1)*self.batch_size]
-        return x_batch, y_batch
-
-
-class FvMHybridSamples(FvMSamples):
-
-    def __init__(self, *args, **kwargs):
-        super(FvMHybridSamples, self).__init__(*args, **kwargs)
-        self.isterminal = self.samples["isterminal"]
-
-    def __getitem__(self, idx):
-        inputs = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
-        outgoing = self.outgoing[idx*self.batch_size:(idx + 1)*self.batch_size]
-        isterminal = self.isterminal[idx*self.batch_size:(idx + 1)*self.batch_size]
-
-        fvm_sample_weights = 1.0 - isterminal
-        fvm_sample_weights /= np.sum(fvm_sample_weights)
-
-        n_terminal = np.sum(isterminal)
-
-        if n_terminal > 0:
-            isterminal_sample_weights = (
-                isterminal*np.sum(1-isterminal) + (1-isterminal)*np.sum(isterminal)
-            )
-            isterminal_sample_weights /= np.sum(isterminal_sample_weights)
-        else:
-            isterminal_sample_weights = (
-                (1 - isterminal) / (2 * self.batch_size * 0.975)
-            )
-        return (
-            inputs,
-            {"fvm": outgoing, "isterminal": isterminal},
-            {"fvm": fvm_sample_weights, "isterminal": isterminal_sample_weights}
-        )
 
 
 class FvMSummaries(TBSummaries):
@@ -192,3 +204,85 @@ class FvMHybridSummaries(TBSummaries):
             # ==================================================================
             plt.close()
             writer.flush()
+
+
+class Temperature(ResourceVariable):
+    """docstring for Temperature"""
+    def __init__(self, value, name="temperature"):
+        super(Temperature, self).__init__(value, name=name)
+
+    def get_config(self):
+        return {"T": float(K.get_value(self))}
+
+
+class ConstantTemperatureSchedule(Callback):
+    """docstring for ConstantTemperatureSchedule"""
+    def __init__(self, temperature, *args, **kwargs):
+        super(ConstantTemperatureSchedule, self).__init__(*args, **kwargs)
+        self.temperature = temperature
+        self.step = 0
+
+    def schedule(self, step):
+        return float(K.get_value(self.temperature))
+
+    def on_train_batch_begin(self, batch, logs={}):
+        T = self.schedule(self.step)
+        K.set_value(self.temperature, T)
+        if logs is not None:
+            logs.update({"T": T}) 
+        else:
+            logs = {"T": T}
+
+    def on_train_batch_end(self, batch, logs={}):
+        self.step += 1
+
+    def get_config(self):
+        return {"name": self.name,
+                "temperature": float(K.get_value(self.temperature))}
+
+
+class PiecewiseConstantTemperatureSchedule(ConstantTemperatureSchedule):
+    """docstring for PiecewiseConstantTemperature"""
+    def __init__(self, temperature, boundaries, values, **kwargs):
+
+        if values[0] != float(K.get_value(temperature)):
+            print("\nWARNING: Provided temperature is not the same as the "
+                "first value of PiecewiseConstantTemperatureSchedule.\nUsing "
+                "value from PiecewiseConstantTemperatureSchedule.\n")
+
+        super(PiecewiseConstantTemperatureSchedule, self).__init__(temperature,
+            **kwargs)
+        self.boundaries = boundaries
+        self.values = values
+
+    def schedule(self, step):
+        for i, b in enumerate(self.boundaries):
+            if step <= b:
+                return self.values[i]
+        if step > self.boundaries[-1]:
+            return self.values[-1]
+
+    def get_config(self):
+        config = super(PiecewiseConstantTemperatureSchedule, self).get_config()
+        config["boundaries"] = self.boundaries
+        config["values"] = self.values
+        config["name"] = self.name
+        return config
+
+
+class HarmonicTemperatureSchedule(ConstantTemperatureSchedule):
+    """docstring for PiecewiseConstantTemperature"""
+    def __init__(self, temperature, decay_rate=1.0, **kwargs):
+        self.T0 = float(K.get_value(temperature))
+        self.decay_rate = decay_rate
+        super(HarmonicTemperatureSchedule, self).__init__(temperature, **kwargs)
+
+    def schedule(self, step):
+        return self.T0 / (1 + self.decay_rate * step)
+
+    def get_config(self):
+        config = super(HarmonicTemperatureSchedule, self).get_config()
+        config["decay_rate"] = self.decay_rate
+        config["T0"] = self.T0
+        config["name"] = self.name
+        return config
