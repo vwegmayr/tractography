@@ -180,9 +180,12 @@ class FvMHybrid(object):
 
 
 class RNNModel(object):
+
     model_name="RNNModel"
 
     sample_class = "RNNSamples"
+
+    summaries = "RNNSummaries"
 
     def __init__(self, input_shape, batch_size, **kwargs):
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")

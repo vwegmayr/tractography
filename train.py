@@ -29,6 +29,7 @@ class RNNResetCallBack(callbacks.Callback):
             self.model.reset_states()
         return
 
+
 def train(model_name,
           train_path,
           eval_path,
@@ -48,7 +49,7 @@ def train(model_name,
     input_shape = np.load(train_path, allow_pickle=True)["input_shape"]
     input_shape = tuple(input_shape)
     model = MODELS[model_name](input_shape, batch_size=batch_size, loss_weight=loss_weight, T=temperature)
-    # model.keras.summary()
+    model.keras.summary()
 
 
     # Run Training #############################################################

@@ -52,6 +52,47 @@ class TBSummaries(TensorBoard):
             writer.flush()
 
 
+class RNNSummaries(TensorBoard):
+
+    def __init__(self, *args, eval_seq=None, activations=None, activations_freq=0, **kwargs):
+        super(RNNSummaries, self).__init__(*args, **kwargs)
+
+        if activations_freq > 0 and activations is None:
+            raise ValueError("activations must be set for activations_freq > 0")
+
+        self.activations_freq = activations_freq
+        self.activations = activations
+        self.eval_seq = eval_seq
+
+    def set_model(self, model):
+        super(RNNSummaries, self).set_model(model)
+        if self.activations_freq > 0:
+            outputs = [model.get_layer(name).output for name in self.activations]
+            self.activation_model = Model(model.input, outputs)
+
+    def on_epoch_end(self, epoch, logs=None):
+        """Runs metrics and histogram summaries at epoch end."""
+        super(RNNSummaries, self).on_epoch_end(epoch, logs)
+        if self.activations_freq and epoch % self.activations_freq == 0:
+            self._log_activations(epoch)
+
+    def _log_activations(self, epoch):
+        """Logs the outputs of the Model to TensorBoard."""
+        writer = self._get_writer(self._train_run_name)
+        with context.eager_mode(), writer.as_default(), \
+            summary_ops_v2.always_record_summaries():
+
+            activations = self.activation_model.predict_generator(self.eval_seq)
+            if not isinstance(activations, list):
+                activations = [activations]
+            for i, values in enumerate(activations):
+                name = self.activations[i]
+                summary_ops_v2.histogram(name, values, step=epoch)
+                summary_ops_v2.scalar(name+"_mean",
+                    np.mean(values), step=epoch)
+            writer.flush()
+
+
 class Samples(Sequence):
     def __init__(self,
                  sample_path,
