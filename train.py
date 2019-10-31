@@ -41,8 +41,7 @@ def train(model_name,
         temp = T.Temperature(temperature)
         model = MODELS[model_name](input_shape, temp)
     elif "RNN" in model_name:
-        model = MODELS[model_name](input_shape, batch_size=batch_size,
-            loss_weight=loss_weight, T=temp)
+        model = MODELS[model_name](input_shape, batch_size=batch_size)
     else:
         model = MODELS[model_name](input_shape, loss_weight=loss_weight)
 
