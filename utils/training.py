@@ -322,8 +322,8 @@ class RNNResetCallBack(Callback):
 
 class Temperature(ResourceVariable):
     """docstring for Temperature"""
-    def __init__(self, value, name="temperature"):
-        super(Temperature, self).__init__(value, name=name)
+    def __init__(self, T=0.0, name="Temperature"):
+        super(Temperature, self).__init__(T, name=name)
 
     def get_config(self):
         return {"T": float(K.get_value(self))}
@@ -331,41 +331,47 @@ class Temperature(ResourceVariable):
 
 class ConstantTemperatureSchedule(Callback):
     """docstring for ConstantTemperatureSchedule"""
-    def __init__(self, temperature, *args, **kwargs):
+    def __init__(self, T, *args, **kwargs):
         super(ConstantTemperatureSchedule, self).__init__(*args, **kwargs)
-        self.temperature = temperature
+        self.T = T
         self.step = 0
 
     def schedule(self, step):
-        return float(K.get_value(self.temperature))
+        return float(K.get_value(self.T))
 
     def on_train_batch_begin(self, batch, logs={}):
-        T = self.schedule(self.step)
-        K.set_value(self.temperature, T)
+        t = self.schedule(self.step)
+        K.set_value(self.T, t)
         if logs is not None:
-            logs.update({"T": T}) 
+            logs.update({"T": t}) 
         else:
-            logs = {"T": T}
+            logs = {"T": t}
+
+    def on_epoch_begin(self, epoch, logs={}):
+        t = self.schedule(self.step)
+        if logs is not None:
+            logs.update({"T": t})
+        else:
+            logs = {"T": t}
 
     def on_train_batch_end(self, batch, logs={}):
         self.step += 1
 
     def get_config(self):
         return {"name": self.name,
-                "temperature": float(K.get_value(self.temperature))}
+                "T": float(K.get_value(self.T))}
 
 
 class PiecewiseConstantTemperatureSchedule(ConstantTemperatureSchedule):
     """docstring for PiecewiseConstantTemperature"""
-    def __init__(self, temperature, boundaries, values, **kwargs):
+    def __init__(self, T, boundaries, values, **kwargs):
 
-        if values[0] != float(K.get_value(temperature)):
+        if values[0] != float(K.get_value(T)):
             print("\nWARNING: Provided temperature is not the same as the "
                 "first value of PiecewiseConstantTemperatureSchedule.\nUsing "
                 "value from PiecewiseConstantTemperatureSchedule.\n")
 
-        super(PiecewiseConstantTemperatureSchedule, self).__init__(temperature,
-            **kwargs)
+        super(PiecewiseConstantTemperatureSchedule, self).__init__(T, **kwargs)
         self.boundaries = boundaries
         self.values = values
 
@@ -378,9 +384,11 @@ class PiecewiseConstantTemperatureSchedule(ConstantTemperatureSchedule):
 
     def get_config(self):
         config = super(PiecewiseConstantTemperatureSchedule, self).get_config()
-        config["boundaries"] = self.boundaries
-        config["values"] = self.values
-        config["name"] = self.name
+        config.update({
+            "boundaries": self.boundaries,
+            "values": self.values,
+            "name": self.name
+            })
         return config
 
 
@@ -388,6 +396,8 @@ class HarmonicTemperatureSchedule(ConstantTemperatureSchedule):
     """docstring for PiecewiseConstantTemperature"""
     def __init__(self, T_start, T_end, n_steps, **kwargs):
         self.T_start = float(K.get_value(T_start))
+        self.T_end = T_end
+        self.n_steps = n_steps
         self.decay_rate = (self.T_start - T_end) / (n_steps * T_end)
         super(HarmonicTemperatureSchedule, self).__init__(T_start, **kwargs)
 
@@ -396,7 +406,10 @@ class HarmonicTemperatureSchedule(ConstantTemperatureSchedule):
 
     def get_config(self):
         config = super(HarmonicTemperatureSchedule, self).get_config()
-        config["decay_rate"] = self.decay_rate
-        config["T_start"] = self.T_start
-        config["name"] = self.name
+        config.update({
+            "T_start": self.T_start,
+            "T_end": self.T_end,
+            "n_steps": self.n_steps,
+            "name": self.name
+            })
         return config

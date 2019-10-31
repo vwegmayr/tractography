@@ -8,7 +8,6 @@ import logging
 import nibabel as nib
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
@@ -18,7 +17,6 @@ from nibabel.streamlines.array_sequence import ArraySequence, concatenate
 from nibabel.streamlines.tractogram import Tractogram
 
 from GPUtil import getFirstAvailable
-from hashlib import md5
 from sklearn.preprocessing import normalize
 from time import time
 
@@ -127,9 +125,10 @@ def run_inference(
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(model_path,
-                           custom_objects=MODELS[model_name].custom_objects)
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
     else:
-        model = load_model(model_path)
+        model = load_model(model_path, compile=False)
 
     terminator = Terminator(term_path, thresh)
 
