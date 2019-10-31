@@ -125,9 +125,10 @@ def run_inference(
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(model_path,
-                           custom_objects=MODELS[model_name].custom_objects)
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
     else:
-        model = load_model(model_path)
+        model = load_model(model_path, compile=False)
 
     terminator = Terminator(term_path, thresh)
 
@@ -414,9 +415,10 @@ def run_rnn_inference(
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(model_path,
-                           custom_objects=MODELS[model_name].custom_objects)
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
     else:
-        model = load_model(model_path)
+        model = load_model(model_path, compile=False)
 
     terminator = Terminator(term_path, thresh)
 
