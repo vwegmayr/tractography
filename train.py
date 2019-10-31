@@ -38,11 +38,11 @@ def train(model_name,
     input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
 
     if "Entrack" in model_name:
-        temperature = T.Temperature(temperature)
-        model = MODELS[model_name](input_shape, temperature)
+        temp = T.Temperature(temperature)
+        model = MODELS[model_name](input_shape, temp)
     elif "RNN" in model_name:
         model = MODELS[model_name](input_shape, batch_size=batch_size,
-            loss_weight=loss_weight, T=temperature)
+            loss_weight=loss_weight, T=temp)
     else:
         model = MODELS[model_name](input_shape, loss_weight=loss_weight)
 
@@ -61,7 +61,7 @@ def train(model_name,
     if "Entrack" in model_name:
         callbacks = [
             T.HarmonicTemperatureSchedule(
-            T_start=temperature,
+            T_start=temp,
             T_end=0.0001,
             n_steps=len(train_seq)*epochs
             )
