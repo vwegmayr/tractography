@@ -362,10 +362,11 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
         )
 
         if n_ongoing == 0:
-            print("{0} times fibers got out of bound, but keep calm as they were already finished".format(out_of_bound_fibers))
             break
 
         gc.collect()
+
+    print("{0} times fibers got out of bound, but keep calm as they were already finished".format(out_of_bound_fibers))
 
     # Include unfinished fibers:
     for idx, gidx in enumerate(fiber_idx):
