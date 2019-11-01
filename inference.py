@@ -42,7 +42,7 @@ class MarginHandler(object):
     def xyz2ijk(self, xyz):
         ijk = (xyz.T).copy()
         self.affi.dot(ijk, out=ijk)
-        return np.round(ijk + 0.5, out=ijk).astype(int, copy=False)
+        return np.round(ijk, out=ijk).astype(int, copy=False)
 
 
 class Prior(MarginHandler):
@@ -112,7 +112,7 @@ def run_inference(
         ijk = (coords.T).copy()
         dwi_affi.dot(ijk, out=ijk)
         if snap:
-            return np.round(ijk + 0.5, out=ijk).astype(int, copy=False).T
+            return np.round(ijk, out=ijk).astype(int, copy=False).T
         else:
             return ijk.T
 
