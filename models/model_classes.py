@@ -228,6 +228,8 @@ class Entrack(FvM):
     """docstring for Entrack"""
     model_name="Entrack"
 
+    summaries = "EntrackSummaries"
+
     sample_class = "EntrackSamples"
 
     custom_objects = {
@@ -257,11 +259,13 @@ class Entrack(FvM):
         x = Dense(2048, activation="relu")(inputs)
         x = Dense(2048, activation="relu")(x)
         x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
         return x
 
     @staticmethod
     def kappa(x):
         kappa = Dense(1024, activation="relu")(x)
+        kappa = Dense(1024, activation="relu")(kappa)
         kappa = Dense(1, activation="relu")(kappa)
         kappa = Lambda(lambda t: K.squeeze(t, 1) + 0.001, name="kappa")(kappa)
         return kappa
@@ -269,6 +273,7 @@ class Entrack(FvM):
     @staticmethod
     def mu(x):
         mu = Dense(1024, activation="relu")(x)
+        mu = Dense(1024, activation="relu")(mu)
         mu = Dense(3, activation="linear")(mu)
         mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
         return mu
