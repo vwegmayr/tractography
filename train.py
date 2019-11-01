@@ -58,17 +58,17 @@ def train(model_name,
 
     if "Entrack" in model_name:
         callbacks = [
-            cb.ConstantTemperatureSchedule(
-            temp
-            )
-            #T.LinearTemperatureScheduleWithWarmup(
-            #T_start=temp,
-            #T_warmup=0.01,
-            #T_end=0.0001,
-            #n_wait_steps=0,
-            #n_warmup_steps=0,
-            #n_steps=len(train_seq)*epochs
+            #cb.ConstantTemperatureSchedule(
+            #temp
             #)
+            cb.LinearTemperatureScheduleWithWarmup(
+            T_start=temp,
+            T_warmup=0.01,
+            T_end=0.0001,
+            n_wait_steps=3*len(train_seq),
+            n_warmup_steps=0,
+            n_steps=len(train_seq)*epochs
+            )
         ]
     elif "RNN" in model_name:
         callbacks = [cb.RNNResetCallBack(train_seq.reset_batches)]
@@ -106,19 +106,40 @@ def train(model_name,
         callbacks.append(
             getattr(summaries, model.summaries)(
             eval_seq=eval_seq,
-            activations_freq=len(train_seq)//5, # 5x per epoch
+            activations_freq=len(train_seq)//3, # //k -> k times per epoch
             log_dir=out_dir,
             write_graph=False,
-            update_freq=len(train_seq)//10,
+            update_freq=50*batch_size,
             profile_batch=0
             )
         )
     try:
-        print("\nStart training, saving to {}\n".format(out_dir))
+        print("\nStart training...\n")
+
+        optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate,
+            clipnorm=10.)
+
+        config=dict(
+            model_name=model_name,
+            train_path=train_path,
+            eval_path=str(eval_path),
+            max_n_samples=str(max_n_samples),
+            batch_size=str(batch_size),
+            epochs=str(epochs),
+            learning_rate=str(learning_rate),
+            optimizer=optimizer._keras_api_names[0])
+        if "Hybrid" in model_name:
+            config["loss_weight"] = str(loss_weight)
+        if "Entrack" in model_name:
+            config["temperature"] = str(temperature)
+
+        config_path = os.path.join(out_dir, "config" + ".yml")
+        print("\nSaving {}".format(config_path))
+        with open(config_path, "w") as file:
+            yaml.dump(config, file, default_flow_style=False)
 
         no_exception = True
 
-        optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate, clipnorm=1.0)
         model.compile(optimizer)
 
         do_shuffle = False if "RNN" in model_name else True
@@ -141,25 +162,6 @@ def train(model_name,
         raise e
     finally:
         if no_exception:
-            config=dict(
-                model_name=model_name,
-                train_path=train_path,
-                eval_path=str(eval_path),
-                max_n_samples=str(max_n_samples),
-                batch_size=str(batch_size),
-                epochs=str(epochs),
-                learning_rate=str(learning_rate),
-                optimizer=optimizer._keras_api_names[0])
-            if "Hybrid" in model_name:
-                config["loss_weight"] = str(loss_weight)
-            if "Entrack" in model_name:
-                config["temperature"] = str(temperature)
-
-            config_path = os.path.join(out_dir, "config" + ".yml")
-            print("\nSaving {}".format(config_path))
-            with open(config_path, "w") as file:
-                yaml.dump(config, file, default_flow_style=False)
-
             if eval_path is None:
                 model_path = os.path.join(out_dir, "model.h5")
                 print("Saving {}".format(model_path))
