@@ -60,11 +60,17 @@ def train(model_name,
 
     if "Entrack" in model_name:
         callbacks = [
-            T.HarmonicTemperatureSchedule(
-            T_start=temp,
-            T_end=0.0001,
-            n_steps=len(train_seq)*epochs
+            T.ConstantTemperatureSchedule(
+            temp
             )
+            #T.LinearTemperatureScheduleWithWarmup(
+            #T_start=temp,
+            #T_warmup=0.01,
+            #T_end=0.0001,
+            #n_wait_steps=0,
+            #n_warmup_steps=0,
+            #n_steps=len(train_seq)*epochs
+            #)
         ]
     elif "RNN" in model_name:
         callbacks = [T.RNNResetCallBack(train_seq.reset_batches)]
@@ -92,7 +98,7 @@ def train(model_name,
                 os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
                 save_best_only=True,
                 save_weights_only=False,
-                period=1)
+                period=5)
         )
     else:
         eval_seq = None
@@ -101,21 +107,23 @@ def train(model_name,
     if hasattr(model, "summaries"):
         callbacks.append(
             getattr(T, model.summaries)(
-                eval_seq=eval_seq,
-                log_dir=out_dir,
-                write_graph=False,
-                update_freq=len(train_seq)//50, # every 50-th batch
-                profile_batch=0)
+            eval_seq=eval_seq,
+            activations_freq=len(train_seq)//5, # 5x per epoch
+            log_dir=out_dir,
+            write_graph=False,
+            update_freq=len(train_seq)//10,
+            profile_batch=0
+            )
         )
     try:
         print("\nStart training, saving to {}\n".format(out_dir))
 
         no_exception = True
 
-        optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate)
+        optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate, clipnorm=1.0)
         model.compile(optimizer)
 
-        do_shuffle = False if model_name == 'rnn' else True
+        do_shuffle = False if "RNN" in model_name else True
         train_history = model.keras.fit_generator(
             train_seq,
             epochs=epochs,
