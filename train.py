@@ -6,18 +6,17 @@ import yaml
 import importlib
 import logging
 
-from tensorflow.keras import callbacks
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras import backend as K
 
-from tensorflow.keras.callbacks import (TensorBoard, ModelCheckpoint,
-    ReduceLROnPlateau, Callback)
+from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 from multiprocessing import cpu_count
 from GPUtil import getFirstAvailable
 
 from models import MODELS
-from utils import training as T
+from utils import sequences, summaries, Temperature
+from utils import callbacks as cb
 
 
 def train(model_name,
@@ -38,7 +37,7 @@ def train(model_name,
     input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
 
     if "Entrack" in model_name:
-        temp = T.Temperature(temperature)
+        temp = Temperature(temperature)
         model = MODELS[model_name](input_shape, temp)
     elif "RNN" in model_name:
         model = MODELS[model_name](input_shape, batch_size=batch_size)
@@ -47,7 +46,7 @@ def train(model_name,
 
     # Load Sampler #############################################################
 
-    sampler = getattr(T, model.sample_class)
+    sampler = getattr(sequences, model.sample_class)
 
     train_seq = sampler(
         train_path,
@@ -59,7 +58,7 @@ def train(model_name,
 
     if "Entrack" in model_name:
         callbacks = [
-            T.ConstantTemperatureSchedule(
+            cb.ConstantTemperatureSchedule(
             temp
             )
             #T.LinearTemperatureScheduleWithWarmup(
@@ -72,7 +71,7 @@ def train(model_name,
             #)
         ]
     elif "RNN" in model_name:
-        callbacks = [T.RNNResetCallBack(train_seq.reset_batches)]
+        callbacks = [cb.RNNResetCallBack(train_seq.reset_batches)]
     else:
         callbacks = []
 
@@ -105,7 +104,7 @@ def train(model_name,
     # Put Tensorboard callback at the end to catch logs from previous callbacks
     if hasattr(model, "summaries"):
         callbacks.append(
-            getattr(T, model.summaries)(
+            getattr(summaries, model.summaries)(
             eval_seq=eval_seq,
             activations_freq=len(train_seq)//5, # 5x per epoch
             log_dir=out_dir,
