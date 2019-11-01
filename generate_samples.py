@@ -261,11 +261,11 @@ def generate_samples(dwi_path,
     elif model == "prior":
         n_samples, samples = generate_prior_samples(dwi, tracts, dwi_xyz2ijk,
             block_size, n_samples)
-    elif model == "rnn":
+    elif model == "RNN":
         n_samples, samples = generate_rnn_samples(dwi, tracts,
             dwi_xyz2ijk, block_size, n_samples)
     #===========================================================================
-    if model != "rnn":
+    if model != "RNN":
         np.random.seed(42)
         perm = np.random.permutation(n_samples)
         for k, v in samples.items():
@@ -281,7 +281,7 @@ def generate_samples(dwi_path,
 
     sample_path = os.path.join(out_dir, "samples.npz")
     print("\nSaving {}".format(sample_path))
-    input_shape = (1, samples["inputs"][0].shape[-1]) if model == 'rnn' else samples["inputs"].shape[1:]
+    input_shape = (1, samples["inputs"][0].shape[-1]) if model == 'RNN' else samples["inputs"].shape[1:]
     np.savez_compressed(
         sample_path,
         input_shape=input_shape,
@@ -313,7 +313,7 @@ if __name__ == '__main__':
     parser.add_argument("trk_path", help="Path to TRK file")
 
     parser.add_argument("--model", default="conditional",
-        choices=["conditional", "prior", "rnn"],
+        choices=["conditional", "prior", "RNN"],
         help="Which model to generate samples for.")
 
     parser.add_argument("--block_size", help="Size of cubic neighborhood.",
