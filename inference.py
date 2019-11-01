@@ -8,7 +8,6 @@ import logging
 import nibabel as nib
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
@@ -18,11 +17,24 @@ from nibabel.streamlines.array_sequence import ArraySequence, concatenate
 from nibabel.streamlines.tractogram import Tractogram
 
 from GPUtil import getFirstAvailable
-from hashlib import md5
 from sklearn.preprocessing import normalize
 from time import time
 
 from models import MODELS
+from models import RNN as RNNModel
+
+os.environ['PYTHONHASHSEED'] = '0'
+tf.compat.v1.set_random_seed(42)
+np.random.seed(42)
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
+logging.getLogger('tensorflow').setLevel(logging.ERROR)
+
+try:
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
+        order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
+except Exception as e:
+    print(str(e))
 
 
 class MarginHandler(object):
@@ -87,18 +99,6 @@ def run_inference(
     out_dir
 ):
     """"""
-    os.environ['PYTHONHASHSEED'] = '0'
-    tf.compat.v1.set_random_seed(42)
-    np.random.seed(42)
-
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
-    logging.getLogger('tensorflow').setLevel(logging.ERROR)
-
-    try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
-            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
-    except Exception as e:
-        print(str(e))
 
     print("Loading DWI...") ####################################################
 
@@ -300,25 +300,31 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size ** 3])
     dnorm = np.zeros([n_seeds, 1])
     vout = np.zeros([n_seeds, 3])
-    already_terminated = np.empty(0)
+    already_terminated = np.empty(0, dtype="int32")
+    mask = np.ones((n_seeds), dtype=bool)
     n_ongoing = n_seeds
+    out_of_bound_fibers = 0
     for i in range(max_steps):
         t0 = time()
 
         ijk = xyz2ijk(xyz[:, -1, :], snap=True)  # Get coords of latest segement for each fiber
 
         for ii, idx in enumerate(ijk):
-            d[ii] = dwi[idx[0] - (block_size // 2): idx[0] + (block_size // 2) + 1,
-                    idx[1] - (block_size // 2): idx[1] + (block_size // 2) + 1,
-                    idx[2] - (block_size // 2): idx[2] + (block_size // 2) + 1,
-                    :].flatten()  # returns copy
-            dnorm[ii] = np.linalg.norm(d[ii]) + 0.0000000001
-            d[ii] /= dnorm[ii]
+            try:
+                d[ii] = dwi[idx[0] - (block_size // 2): idx[0] + (block_size // 2) + 1,
+                        idx[1] - (block_size // 2): idx[1] + (block_size // 2) + 1,
+                        idx[2] - (block_size // 2): idx[2] + (block_size // 2) + 1,
+                        :].flatten()  # returns copy
+                dnorm[ii] = np.linalg.norm(d[ii]) + 0.0000000001
+                d[ii] /= dnorm[ii]
+            except:
+                assert ii in already_terminated
+                out_of_bound_fibers = out_of_bound_fibers + 1
 
         if i == 0:
-            inputs = np.hstack([prior(xyz[:, 0, :]), d[:n_seeds], dnorm[:n_seeds]])
+            inputs = np.hstack([prior(xyz[:, 0, :]), d, dnorm])
         else:
-            inputs = np.hstack([vout[:n_seeds], d[:n_seeds], dnorm[:n_seeds]])
+            inputs = np.hstack([vout, d, dnorm])
 
         vout = model.predict(inputs[:, np.newaxis, :]).squeeze()
 
@@ -327,8 +333,10 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
 
         xyz = np.concatenate([xyz, rout], axis=1)
 
-        terminal_indices = terminator(xyz[:, -1, :])
-        terminal_indices = [x for x in terminal_indices if x not in already_terminated]
+        mask[already_terminated] = False
+        tmp_indices = terminator(xyz[mask, -1, :])
+        terminal_indices = np.where(mask)[0][tmp_indices]
+
         for idx in terminal_indices:
             gidx = fiber_idx[idx]
             # Other end not yet added
@@ -344,8 +352,7 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
                 fibers[gidx] = [merged_fiber]
 
             n_ongoing = n_ongoing - 1
-        already_terminated = np.concatenate(
-            [already_terminated, np.array([x for x in terminal_indices if x not in already_terminated])])  # Just to make sure, we already keep them out though!
+        already_terminated = np.concatenate([already_terminated, terminal_indices])
 
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
               " {:6.0f} steps/sec".format(
@@ -358,6 +365,8 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
             break
 
         gc.collect()
+
+    print("{0} times fibers got out of bound, but keep calm as they were already finished".format(out_of_bound_fibers))
 
     # Include unfinished fibers:
     for idx, gidx in enumerate(fiber_idx):
@@ -382,22 +391,10 @@ def run_rnn_inference(
         predict_fn,
         step_size,
         max_steps,
+        batch_size,
         out_dir
 ):
     """"""
-    os.environ['PYTHONHASHSEED'] = '0'
-    tf.compat.v1.set_random_seed(42)
-    np.random.seed(42)
-
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
-    logging.getLogger('tensorflow').setLevel(logging.ERROR)
-
-    try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
-            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
-    except Exception as e:
-        print(str(e))
-
     print("Loading DWI...")  ####################################################
 
     dwi_img = nib.load(dwi_path)
@@ -414,11 +411,14 @@ def run_rnn_inference(
         model_name = yaml.load(config_file)["model_name"]
 
     if hasattr(MODELS[model_name], "custom_objects"):
-        model = load_model(model_path,
-                           custom_objects=MODELS[model_name].custom_objects,
-                           compile=False)
+        trained_model = load_model(model_path,
+                           custom_objects=MODELS[model_name].custom_objects)
     else:
-        model = load_model(model_path, compile=False)
+        trained_model = load_model(model_path)
+
+    input_shape = trained_model.input_shape[1:]
+    prediction_model = RNNModel(input_shape, batch_size=batch_size).keras
+    prediction_model.set_weights(trained_model.get_weights())
 
     terminator = Terminator(term_path, thresh)
 
@@ -431,20 +431,24 @@ def run_rnn_inference(
     n_seeds = len(xyz)
     fibers = [[] for _ in range(n_seeds)]
 
-    ## MY THING HERE:
-    batch_size = 5
-    for i in range(0, n_seeds, batch_size):
-        print("Batch {0} finished".format(i))
-        xyz_batch = xyz[i:i + batch_size]
+    for i in range(0, n_seeds, batch_size // 2):
+        xyz_batch = xyz[i:i + batch_size // 2]
 
         n_seeds_batch = 2 * len(xyz_batch)
         xyz_batch = np.vstack([xyz_batch, xyz_batch])  # Duplicate seeds for both directions
         xyz_batch = np.hstack([xyz_batch, np.ones([n_seeds_batch, 1])])  # add affine dimension
         xyz_batch = xyz_batch.reshape(-1, 1, 4)  # (fiber, segment, coord)
 
-        model.reset_states()
-        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator, model, dwi, dwi_affi, max_steps, step_size)
-        fibers[i:i+batch_size] = batch_fibers
+        if i == batch_size//2 * (n_seeds // (batch_size // 2)): # Make a last model for the remaining batch
+            last_batch_size = (n_seeds - i) * 2
+            input_shape = prediction_model.input_shape[1:]
+            prediction_model = RNNModel(input_shape, batch_size=last_batch_size).keras
+            prediction_model.set_weights(trained_model.get_weights())
+
+        prediction_model.reset_states()
+        print("Batch {0} with shape {1}".format(i // (batch_size // 2), xyz_batch.shape))
+        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator, prediction_model, dwi, dwi_affi, max_steps, step_size)
+        fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
     fibers = [f[0] for f in fibers]
@@ -524,21 +528,45 @@ if __name__ == '__main__':
     parser.add_argument("--max_steps", type=int, default=400,
         help="Maximum number of iterations.")
 
+    parser.add_argument("--batch_size", type=int, default=512, help="Batch size of the model during predictions")
+
     parser.add_argument("--out_dir", type=str, default=None,
         help="Directory to save the predicted fibers. "
         "By default, it is created next to dwi_path.")
 
     args = parser.parse_args()
 
-    run_inference(
-        args.model_path,
-        args.dwi_path,
-        args.prior_path,
-        args.seed_path,
-        args.term_path,
-        args.thresh,
-        args.predict_fn,
-        args.step_size,
-        args.max_steps,
-        args.out_dir
-    )
+
+    config_path = os.path.join(os.path.dirname(args.model_path), "config.yml")
+    with open(config_path, "r") as config_file:
+        model_name = yaml.load(config_file)["model_name"]
+
+    if model_name == "RNN":
+        run_rnn_inference(
+            args.model_path,
+            args.dwi_path,
+            args.prior_path,
+            args.seed_path,
+            args.term_path,
+            args.thresh,
+            args.predict_fn,
+            args.step_size,
+            args.max_steps,
+            args.batch_size,
+            args.out_dir
+        )
+    else:
+        run_inference(
+            args.model_path,
+            args.dwi_path,
+            args.prior_path,
+            args.seed_path,
+            args.term_path,
+            args.thresh,
+            args.predict_fn,
+            args.step_size,
+            args.max_steps,
+            args.out_dir
+        )
+
+
