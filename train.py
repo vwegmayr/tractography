@@ -58,17 +58,22 @@ def train(model_name,
 
     if "Entrack" in model_name:
         callbacks = [
+            cb.AutomaticTemperatureSchedule(
+            T_start=temp,
+            decay=0.99,
+            rtol=0.05
+            )
             #cb.ConstantTemperatureSchedule(
             #temp
             #)
-            cb.LinearTemperatureScheduleWithWarmup(
-            T_start=temp,
-            T_warmup=0.01,
-            T_end=0.0001,
-            n_wait_steps=3*len(train_seq),
-            n_warmup_steps=0,
-            n_steps=len(train_seq)*epochs
-            )
+            #cb.LinearTemperatureScheduleWithWarmup(
+            #T_start=temp,
+            #T_warmup=0.01,
+            #T_end=0.0001,
+            #n_wait_steps=3*len(train_seq),
+            #n_warmup_steps=0,
+            #n_steps=len(train_seq)*epochs
+            #)
         ]
     elif "RNN" in model_name:
         callbacks = [cb.RNNResetCallBack(train_seq.reset_batches)]

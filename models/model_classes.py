@@ -9,6 +9,10 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 tfd = tfp.distributions
 
 
+def mean(_, x):
+    return K.mean(x)
+
+
 def fvm_entropy(kappa):
     """For d=3"""
     expk2 = K.exp(- 2 * kappa)
@@ -236,6 +240,7 @@ class Entrack(FvM):
             "mean_fvm_cost": mean_fvm_cost,
             "mean_neg_fvm_entropy": mean_neg_fvm_entropy,
             "mean_neg_dot_prod": mean_neg_dot_prod,
+            "kappa_mean": mean,
             "DistributionLambda": tfp.layers.DistributionLambda
         }
 
@@ -296,6 +301,7 @@ class Entrack(FvM):
                 "kappa": self.custom_objects["mean_neg_fvm_entropy"]
             },
             loss_weights={"fvm": 1.0, "kappa": self.temperature},
-            metrics={"fvm": self.custom_objects["mean_neg_dot_prod"]}
+            metrics={"fvm": self.custom_objects["mean_neg_dot_prod"],
+                     "kappa": self.custom_objects["kappa_mean"]}
         )
 
