@@ -232,8 +232,6 @@ class EntrackSummaries(TBSummaries):
         writer = self._get_writer(self._train_run_name)
         with context.eager_mode(), writer.as_default(), \
             summary_ops_v2.always_record_summaries():
-            #summary_ops_v2.histogram("kappa", kappa_pred, step=step)
-            #summary_ops_v2.scalar("kappa_mean", np.mean(kappa_pred), step=step)
             # ------------------------------------------------------------------
             fig, ax = plt.subplots()
             ax.hist2d(kappa_pred, agreement, bins=50, density=True,
