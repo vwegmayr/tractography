@@ -5,9 +5,31 @@ import numpy as np
 from tensorflow.python.keras.callbacks import Callback
 from tensorflow.keras import backend as K
 
-from . import Temperature
 
+class RunningWindowLogger(Callback):
+    """docstring for RunningWindowLogger"""
+    def __init__(self, metrics, window_size, log_std=False):
 
+        super(RunningWindowLogger, self).__init__()
+        self.metrics = metrics
+        self.window_size = window_size
+        self.log_std = log_std
+        self.running_windows = {m: [] for m in metrics}
+
+    def on_batch_end(self, batch, logs={}):
+        for k in self.metrics:
+            self.running_windows[k].append(float(logs[k]))
+
+            if batch + 1 > self.window_size:
+                self.running_windows[k].pop(0)
+
+            if batch + 1 >= self.window_size:
+                logs.update({k + "_average": np.mean(self.running_windows[k])})
+
+                if self.log_std:
+                    logs.update({k + "_std": np.std(self.running_windows[k])})
+
+        
 class RNNResetCallBack(Callback):
     def __init__(self, reset_batches):
         super(RNNResetCallBack, self).__init__()
@@ -19,111 +41,67 @@ class RNNResetCallBack(Callback):
         return
 
 
-class ConstantTemperatureSchedule(Callback):
-    """docstring for ConstantTemperatureSchedule"""
-    def __init__(self, T, *args, **kwargs):
-        super(ConstantTemperatureSchedule, self).__init__(*args, **kwargs)
-        self.T = T
+class AutomaticTemperatureSchedule(Callback):
+    """docstring for PiecewiseConstantTemperature"""
+    def __init__(self, T_start, T_stop=0.001, decay=0.99, tol=0.05,
+        min_lr=None, n_checkpoints=10, reinit_patience=128, out_dir="", **kwargs):
 
-    def schedule(self, step, logs={}):
-        return float(K.get_value(self.T))
+        super(AutomaticTemperatureSchedule, self).__init__()
+
+        self.T = T_start
+        self.T_start = float(K.get_value(T_start))
+        assert self.T_start > T_stop
+        self.T_stop = T_stop
+        self.decay = decay
+        self.tol = tol
+        self.min_lr = min_lr
+        self.n_checkpoints = n_checkpoints
+        self.out_dir = out_dir
+        self.T_save = np.geomspace(self.T_start, T_stop, n_checkpoints)
+        self.reinit_patience=reinit_patience
+        self._is_stuck_for = 0
+
 
     def on_train_batch_end(self, batch, logs={}):
-        t = self.schedule(batch, logs)
-        K.set_value(self.T, t)
+
+        is_stuck = logs["kappa_mean"] < 0.002
+        decreased = False
+        Tnow = np.round(float(K.get_value(self.T)), 6)
+
+        self._is_stuck_for += is_stuck
+
+        if self._is_stuck_for > self.reinit_patience:
+            self._reinit_model()
+            self._is_stuck_for = 0
+
+        if "kappa_mean_average" in logs and not is_stuck:
+
+            if np.isclose(
+                logs["kappa_mean_average"],
+               -logs["fvm_mean_neg_dot_prod_average"] / Tnow, rtol=self.tol):
+
+                decreased = True
+
+                Tnew = self.decay * Tnow
+
+                K.set_value(self.T, Tnew)
+
+                if any((Tnow >= self.T_save) & (Tnew <= self.T_save)):
+                    self._save_model(Tnow)
+
+                if self.min_lr is not None:
+                    self._set_lr(Tnew, logs)
+
+                if Tnew <= self.T_stop:
+                    self.model.stop_training = True
+
+        t = Tnew if decreased else Tnow
         logs.update({"T": t, "beta": 1 / (t + 10**-9)}) 
 
-        #     check_stuck_steps = 2**16 // logs["size"] + 1
-        #     if (self.step < self.n_wait_steps and self.step % check_stuck_steps == 0 and
-        #         logs["kappa_loss"] < -2.53):
-        #         print("\nModel seems stuck, reinitializing...")
-        #         for layer in self.model.layers: 
-        #             for k, initializer in layer.__dict__.items():
-        #                 if "initializer" not in k:
-        #                     continue
-        #                 var = getattr(layer, k.replace("_initializer", ""))
-        #                 var.assign(initializer(var.shape, var.dtype))
 
     def on_epoch_end(self, epoch, logs={}):
         t = float(K.get_value(self.T))
-        if logs is not None:
-            logs.update({"T": t, "beta": 1 / (t + 10**-9)})
-        else:
-            logs = {"T": t, "beta": 1 / (t + 10**-9)}
-
-    def get_config(self):
-        return {"name": self.name,
-                "T": float(K.get_value(self.T))}
-
-
-class AutomaticTemperatureSchedule(ConstantTemperatureSchedule):
-    """docstring for PiecewiseConstantTemperature"""
-    def __init__(self, T_start, T_stop=0.001, decay=0.99, rtol=0.05,
-        min_lr=0.001, n_checkpoints=10, n_average=100, out_dir="", **kwargs):
-
-        self.T_start = float(K.get_value(T_start))
-
-        assert self.T_start > T_stop
-
-        self.T_stop = T_stop
-        self.decay = decay
-        self.rtol = rtol
-        self.min_lr = min_lr
-        self.n_checkpoints = n_checkpoints
-        self.n_average = n_average
-        self.out_dir = out_dir
-
-        self.T_save = np.geomspace(self.T_start, T_stop, n_checkpoints)
-
-        self.prev_metric = {}
-
-        super(AutomaticTemperatureSchedule, self).__init__(T_start, **kwargs)
-
-
-    def on_train_batch_end(self, batch, logs={}):
-
-        current = {}
-        for metric, value in logs.items():
-            if metric not in ["batch", "size"]:
-                if batch == 0:
-                    current[metric + "_current"] = value
-                else:
-                    current[metric + "_current"] = (batch + 1) * (
-                        value - batch / (batch + 1) * self.prev_metric[metric]
-                    )
-
-                self.prev_metric[metric] = value
-
-        logs.update(current)
-
-        t = self.schedule(batch, logs)
-        K.set_value(self.T, t)
-
-        logs.update({"T": t, "beta": 1 / (t + 10**-9)}) 
-
-
-    def schedule(self, step, logs={}):
-
-        Told = np.round(float(K.get_value(self.T)), 6)
-
-        if np.isclose(
-            logs["kappa_mean_current"], - logs["fvm_mean_neg_dot_prod_current"] / Told,
-            rtol=self.rtol):
-
-            Tnew = self.decay * Told
-
-            if any((Told >= self.T_save) & (Tnew <= self.T_save)):
-                self._save_model(Told)
-
-            if Tnew <= self.T_stop:
-                self.model.stop_training = True
-                return Tnew
-
-            #self._set_lr(Tnew, logs)
-
-            return Tnew
-        else:
-            return Told
+        logs.update({"T": t, "beta": 1 / (t + 10**-9)})
 
 
     def _save_model(self, T):
@@ -136,10 +114,16 @@ class AutomaticTemperatureSchedule(ConstantTemperatureSchedule):
         lr = float(K.get_value(self.model.optimizer.lr))
         lr = max(lr * (T / self.T_start), self.min_lr)
         K.set_value(self.model.optimizer.lr, lr)
-        if logs is not None:
-            logs.update({"lr": lr})
-        else:
-            logs = {"lr": lr}
+        logs.update({"lr": lr})
+
+
+    def _reinit_model(self):
+        for layer in self.model.layers: 
+            for k, initializer in layer.__dict__.items():
+                if "initializer" not in k:
+                    continue
+                var = getattr(layer, k.replace("_initializer", ""))
+                var.assign(initializer(var.shape, var.dtype))
       
 
     def get_config(self):
@@ -148,10 +132,21 @@ class AutomaticTemperatureSchedule(ConstantTemperatureSchedule):
             "T_start": self.T_start,
             "T_stop": self.T_stop,
             "decay": self.decay,
-            "rtol": self.rtol,
+            "tol": self.tol,
             "min_lr": self.min_lr,
             "n_checkpoints": self.n_checkpoints,
             "out_dir": self.out_dir,
             "name": self.name
             })
         return config
+
+        #     check_stuck_steps = 2**16 // logs["size"] + 1
+        #     if (self.step < self.n_wait_steps and self.step % check_stuck_steps == 0 and
+        #         logs["kappa_loss"] < -2.53):
+        #         print("\nModel seems stuck, reinitializing...")
+        #         for layer in self.model.layers: 
+        #             for k, initializer in layer.__dict__.items():
+        #                 if "initializer" not in k:
+        #                     continue
+        #                 var = getattr(layer, k.replace("_initializer", ""))
+        #                 var.assign(initializer(var.shape, var.dtype))
