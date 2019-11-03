@@ -15,14 +15,13 @@ from multiprocessing import cpu_count
 from GPUtil import getFirstAvailable
 
 from models import MODELS
-from utils import sequences, summaries, Temperature
+from utils import summaries, Temperature
 from utils import callbacks as cb
 
 
 def train(model_name,
           train_path,
           eval_path,
-          max_n_samples,
           batch_size,
           epochs,
           learning_rate,
@@ -32,6 +31,11 @@ def train(model_name,
           temperature,
           out_dir):
 
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    out_dir = os.path.join(out_dir, model_name, suffix, timestamp)
+    os.makedirs(out_dir, exist_ok=True)
+
     # Load Model ###############################################################
 
     input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
@@ -39,70 +43,35 @@ def train(model_name,
     if "Entrack" in model_name:
         temp = Temperature(temperature)
         model = MODELS[model_name](input_shape, temp)
-    elif "RNN" in model_name:
-        model = MODELS[model_name](input_shape, batch_size=batch_size)
-    else:
-        model = MODELS[model_name](input_shape, loss_weight=loss_weight)
-
-    # Load Sampler #############################################################
-
-    sampler = getattr(sequences, model.sample_class)
-
-    train_seq = sampler(
-        train_path,
-        batch_size,
-        max_n_samples=max_n_samples
-    )
-
-    # Load Callbacks ###########################################################
-
-    if "Entrack" in model_name:
+        train_seq = model.get_sequence(train_path, batch_size)
         callbacks = [
+            cb.RunningWindowLogger(
+            metrics=["kappa_mean", "fvm_mean_neg_dot_prod"],
+            window_size=len(train_seq)//20,
+            log_std=True),
             cb.AutomaticTemperatureSchedule(
             T_start=temp,
+            T_stop=0.005,
             decay=0.99,
-            rtol=0.05
-            )
-            #cb.ConstantTemperatureSchedule(
-            #temp
-            #)
-            #cb.LinearTemperatureScheduleWithWarmup(
-            #T_start=temp,
-            #T_warmup=0.01,
-            #T_end=0.0001,
-            #n_wait_steps=3*len(train_seq),
-            #n_warmup_steps=0,
-            #n_steps=len(train_seq)*epochs
-            #)
+            tol=0.01,
+            min_lr=0.0001,
+            n_checkpoints=10,
+            out_dir=out_dir
+            ),
         ]
     elif "RNN" in model_name:
+        model = MODELS[model_name](input_shape, batch_size=batch_size)
+        train_seq = model.get_sequence(train_path, batch_size)
         callbacks = [cb.RNNResetCallBack(train_seq.reset_batches)]
     else:
+        model = MODELS[model_name](input_shape, loss_weight=loss_weight)
+        train_seq = model.get_sequence(train_path, batch_size)
         callbacks = []
 
     # Run Training #############################################################
     
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-    out_dir = os.path.join(out_dir, model_name, suffix, timestamp)
-    os.makedirs(out_dir, exist_ok=True)
-
-    callbacks.append(ReduceLROnPlateau(monitor='val_loss',
-                          factor=0.5,
-                          patience=5,
-                          min_lr=0.0001)
-    )
     if eval_path is not None:
-        eval_seq = sampler(
-            eval_path,
-            max_n_samples=max_n_samples,
-            istraining=False)
-        callbacks.append(
-            ModelCheckpoint(
-                os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
-                save_best_only=True,
-                save_weights_only=False,
-                period=5)
-        )
+        eval_seq = model.get_sequence(eval_path, batch_size, istraining=False)
     else:
         eval_seq = None
 
@@ -111,10 +80,10 @@ def train(model_name,
         callbacks.append(
             getattr(summaries, model.summaries)(
             eval_seq=eval_seq,
-            activations_freq=len(train_seq)//3, # //k -> k times per epoch
+            activations_freq=len(train_seq)//3, # //k times per epoch
             log_dir=out_dir,
             write_graph=False,
-            update_freq=50*batch_size,
+            update_freq=batch_size * (len(train_seq)//100), # //k times per epoch
             profile_batch=0
             )
         )
@@ -128,7 +97,6 @@ def train(model_name,
             model_name=model_name,
             train_path=train_path,
             eval_path=str(eval_path),
-            max_n_samples=str(max_n_samples),
             batch_size=str(batch_size),
             epochs=str(epochs),
             learning_rate=str(learning_rate),
@@ -158,19 +126,15 @@ def train(model_name,
             shuffle=do_shuffle,
             workers=cpu_count()
         )
-    #except KeyboardInterrupt:
-    #    os.rename(out_dir, out_dir + "_stopped")
-    #    out_dir = out_dir + "_stopped"
     except Exception as e:
         shutil.rmtree(out_dir)
         no_exception = False
         raise e
     finally:
         if no_exception:
-            if eval_path is None:
-                model_path = os.path.join(out_dir, "model.h5")
-                print("Saving {}".format(model_path))
-                model.keras.save(model_path)
+            model_path = os.path.join(out_dir, "final_model.h5")
+            print("\nSaving {}".format(model_path))
+            model.keras.save(model_path)
 
     return model
 
@@ -189,10 +153,6 @@ if __name__ == '__main__':
     parser.add_argument("--eval", type=str, default=None, dest="eval_path",
         help="Path to evaluation samples file generated by "
         "`generate_conditional_samples.py` are saved")
-
-    parser.add_argument("--max_n_samples", type=int, default=np.inf,
-        help="Maximum number of samples to be used for both training and "
-        "evaluation")
 
     parser.add_argument("--batch_size", type=int, default=256,
                         help="batch size")
@@ -244,7 +204,6 @@ if __name__ == '__main__':
     train(args.model_name,
           args.train_path,
           args.eval_path,
-          args.max_n_samples,
           args.batch_size,
           args.epochs,
           args.learning_rate,
