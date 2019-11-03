@@ -6,7 +6,8 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import (Input, Reshape, Dropout,
     BatchNormalization, Lambda, Dense, GRU)
 
-from utils import sequences
+import configs
+from utils import sequences, Temperature
 
 tfd = tfp.distributions
 
@@ -255,7 +256,14 @@ class Entrack(Model):
             "DistributionLambda": tfp.layers.DistributionLambda
         }
 
-    def __init__(self, input_shape, temperature):
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
+        temperature = Temperature(config["temperature"])
+
+        configs.deep_update(config, {"temperature": temperature})
 
         inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)
@@ -315,3 +323,9 @@ class Entrack(Model):
             metrics={"fvm": self.custom_objects["mean_neg_dot_prod"],
                      "kappa": self.custom_objects["kappa_mean"]}
         )
+
+    @staticmethod
+    def check(config):
+        """Assert model specific parameters"""
+        assert "temperature" in config
+        assert config["temperature"] > 0

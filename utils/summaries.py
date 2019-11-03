@@ -12,26 +12,32 @@ from sklearn.metrics import precision_recall_curve, average_precision_score
 
 class TBSummaries(TensorBoard):
 
-    def __init__(self, *args,
+    def __init__(self,
+        out_dir=None,
         eval_seq=None,
+        update_freq="batch",
         activations_freq=0,
         activations=None,
         scatter=None,
-        scatter_frequ=0,
-        **kwargs):
-        super(TBSummaries, self).__init__(*args, **kwargs)
-
+        scatter_freq=0
+        ):
+        super(TBSummaries, self).__init__(
+            log_dir=out_dir,
+            update_freq=update_freq,
+            write_graph=False,
+            profile_batch=0
+            )
         if activations_freq and activations is None:
             raise ValueError("activations must be set for activations_freq != 0")
 
-        if scatter_frequ and scatter is None:
-            raise ValueError("scatter must be set for scatter_frequ != 0")
+        if scatter_freq and scatter is None:
+            raise ValueError("scatter must be set for scatter_freq != 0")
 
         self.activations_freq = activations_freq
         self.activations = activations
 
         self.scatter = scatter
-        self.scatter_frequ = scatter_frequ
+        self.scatter_freq = scatter_freq
 
         self.eval_seq = eval_seq
 
@@ -42,7 +48,7 @@ class TBSummaries(TensorBoard):
             outputs = [model.get_layer(name).output for name in self.activations]
             self.activation_model = Model(model.input, outputs)
 
-        if self.scatter_frequ:
+        if self.scatter_freq:
             x = [model.get_layer(name[0]).output for name in self.scatter]
             y = [model.get_layer(name[1]).output for name in self.scatter]
             self.scatter_x_model = Model(model.input, x)
@@ -55,8 +61,8 @@ class TBSummaries(TensorBoard):
             self._total_batches_seen % self.activations_freq == 0):
             self._log_activations(self._total_batches_seen)
 
-        if (self.scatter_frequ and self.scatter_frequ != "epoch" and
-            self._total_batches_seen % self.scatter_frequ == 0):
+        if (self.scatter_freq and self.scatter_freq != "epoch" and
+            self._total_batches_seen % self.scatter_freq == 0):
             self._scatter(self._total_batches_seen, logs)
 
     def on_epoch_end(self, epoch, logs={}):
@@ -66,7 +72,7 @@ class TBSummaries(TensorBoard):
         if self.activations_freq and self.activations_freq == "epoch":
             self._log_activations(epoch)
 
-        if self.scatter_frequ and self.scatter_frequ == "epoch":
+        if self.scatter_freq and self.scatter_freq == "epoch":
             self._scatter(epoch, logs)
 
     def _log_activations(self, step):
@@ -201,21 +207,23 @@ class FvMHybridSummaries(TBSummaries):
 
 class EntrackSummaries(TBSummaries):
 
-    def __init__(self, *args,
+    def __init__(self,
+                 out_dir=None,
                  eval_seq=None,
-                 activations_freq="epoch",
+                 update_freq="batch",
                  activations=["kappa"],
+                 activations_freq="epoch",
                  scatter=[("kappa", "mu")],
-                 scatter_frequ="epoch",
-                 **kwargs
+                 scatter_freq="epoch"
         ):
-        super(EntrackSummaries, self).__init__(*args,
+        super(EntrackSummaries, self).__init__(
+            out_dir=out_dir,
             eval_seq=eval_seq,
+            update_freq=update_freq,
             activations_freq=activations_freq,
             activations=activations,
             scatter=scatter,
-            scatter_frequ=scatter_frequ,
-            **kwargs
+            scatter_freq=scatter_freq,
         )
 
     def _scatter(self, step, logs):
@@ -253,11 +261,12 @@ class EntrackSummaries(TBSummaries):
 class RNNSummaries(TensorBoard):
 
     def __init__(self, *args,
+        out_dir=None,
         eval_seq=None,
         activations=None,
         activations_freq=0,
         **kwargs):
-        super(RNNSummaries, self).__init__(*args, **kwargs)
+        super(RNNSummaries, self).__init__(*args, log_dir=out_dir, **kwargs)
 
         if activations_freq > 0 and activations is None:
             raise ValueError("activations must be set for activations_freq > 0")

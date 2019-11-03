@@ -43,13 +43,13 @@ class RNNResetCallBack(Callback):
 
 class AutomaticTemperatureSchedule(Callback):
     """docstring for PiecewiseConstantTemperature"""
-    def __init__(self, T_start, T_stop=0.001, decay=0.99, tol=0.05,
+    def __init__(self, temperature, T_stop=0.001, decay=0.99, tol=0.05,
         min_lr=None, n_checkpoints=10, reinit_patience=128, out_dir="", **kwargs):
 
         super(AutomaticTemperatureSchedule, self).__init__()
 
-        self.T = T_start
-        self.T_start = float(K.get_value(T_start))
+        self.T = temperature
+        self.T_start = float(K.get_value(temperature))
         assert self.T_start > T_stop
         self.T_stop = T_stop
         self.decay = decay
@@ -139,14 +139,3 @@ class AutomaticTemperatureSchedule(Callback):
             "name": self.name
             })
         return config
-
-        #     check_stuck_steps = 2**16 // logs["size"] + 1
-        #     if (self.step < self.n_wait_steps and self.step % check_stuck_steps == 0 and
-        #         logs["kappa_loss"] < -2.53):
-        #         print("\nModel seems stuck, reinitializing...")
-        #         for layer in self.model.layers: 
-        #             for k, initializer in layer.__dict__.items():
-        #                 if "initializer" not in k:
-        #                     continue
-        #                 var = getattr(layer, k.replace("_initializer", ""))
-        #                 var.assign(initializer(var.shape, var.dtype))
