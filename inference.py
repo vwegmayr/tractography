@@ -279,7 +279,7 @@ def run_inference(
 
 def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, step_size):
 
-    n_seeds = len(xyz)
+    n_seeds = len(xyz) ## duplicated before, so multiple of 2
     fiber_idx = np.hstack([
         np.arange(n_seeds//2, dtype="int32"),
         np.arange(n_seeds//2,  dtype="int32")
@@ -447,11 +447,12 @@ def run_rnn_inference(
 
         prediction_model.reset_states()
         print("Batch {0} with shape {1}".format(i // (batch_size // 2), xyz_batch.shape))
-        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator, prediction_model, dwi, dwi_affi, max_steps, step_size)
+        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
+            prediction_model, dwi, dwi_affi, max_steps, step_size)
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
-    fibers = [f[0] for f in fibers]
+    fibers = [f[0] for f in fibers] ## is this OK? 
 
     tractogram = Tractogram(
         streamlines=ArraySequence(fibers),
