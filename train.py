@@ -5,8 +5,6 @@ import shutil
 from tensorflow.keras import optimizers as keras_optimizers
 import numpy as np
 
-from multiprocessing import cpu_count
-
 from models import MODELS
 from utils import setup_env, timestamp, parse_callbacks
 
@@ -15,7 +13,7 @@ import configs
 
 @setup_env
 def train(config):
-    
+
     out_dir = os.path.join("models",
                            config["model_name"],
                            config["model_type"],
@@ -51,9 +49,9 @@ def train(config):
             epochs=config["epochs"],
             shuffle=config["shuffle"],
             max_queue_size=4 * config["batch_size"],
-            use_multiprocessing=True,
-            workers=cpu_count()
         )
+    except KeyboardInterrupt:
+        model.stop_training = True
     except Exception as e:
         shutil.rmtree(out_dir)
         no_exception = False
