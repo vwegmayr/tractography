@@ -6,6 +6,8 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import (Input, Reshape, Dropout,
     BatchNormalization, Lambda, Dense, GRU)
 
+from utils import sequences
+
 tfd = tfp.distributions
 
 
@@ -76,7 +78,16 @@ class FisherVonMises(tfd.VonMisesFisher):
         return np.log(2*np.pi) + kappa + tf.math.log1p(- expk2) - K.log(kappa)
         
 
-class FvM(object):
+class Model(object):
+    """docstring for Model"""
+    
+    def get_sequence(self, sample_path, batch_size, istraining=True):
+        return getattr(sequences, self.sample_class)(sample_path,
+                                                     batch_size,
+                                                     istraining)
+        
+
+class FvM(Model):
     """docstring for FvM"""
     model_name="FvM"
 
@@ -129,7 +140,7 @@ class FvM(object):
             metrics=[self.custom_objects["mean_neg_dot_prod"]])
 
 
-class FvMHybrid(object):
+class FvMHybrid(Model):
     """docstring for FvMHybrid"""
     model_name="FvMHybrid"
 
@@ -198,7 +209,7 @@ class FvMHybrid(object):
         )
 
 
-class RNN(object):
+class RNN(Model):
 
     model_name="RNN"
 
@@ -228,7 +239,7 @@ class RNN(object):
             loss = {'output1': 'mean_squared_error'})
 
 
-class Entrack(FvM):
+class Entrack(Model):
     """docstring for Entrack"""
     model_name="Entrack"
 
@@ -304,4 +315,3 @@ class Entrack(FvM):
             metrics={"fvm": self.custom_objects["mean_neg_dot_prod"],
                      "kappa": self.custom_objects["kappa_mean"]}
         )
-
