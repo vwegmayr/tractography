@@ -1,6 +1,6 @@
 .DS_Store
 .idea/
-.ipynb_checkpoints/
+**/.ipynb_checkpoints/
 subjects/
 hcp_zips/
 models/
@@ -8,7 +8,7 @@ models/
 !models/__init__.py
 scoring/scoring_data
 scoring/results
-*.pyc
 .archive
 .running
 configs/*
+**/*.pyc

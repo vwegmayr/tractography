@@ -15,28 +15,39 @@ keep_frac=0.2
 ext_num=020   # 100 * keep_frac - must be 3 digits integer
 merge_out_dir="merged_tracts"
 
-regex="hcp_zips/([0-9]+)_3T_Diffusion_preproc.zip"
+regex="hcp_zips/([0-9]+[retest]*)_3T_Diffusion_preproc.zip"
 
-for fileadress in "hcp_zips/"*".zip"; do
+if [ -z $1 ]
+then
+    paths="hcp_zips/"*".zip"
+else
+    paths="hcp_zips/${1}_3T_Diffusion_preproc.zip"
+fi
+
+for fileadress in $paths; do
     if [[ "${fileadress}" =~ $regex ]]
     then
         filename="${BASH_REMATCH[1]}"
-        
+        subjectID=$(grep -Po "[0-9]+" <<< ${filename})
+
         echo "Unpacking ${filename} dwi files..." &&
-        ./unpack_hcp_dwi.sh $filename &&
+        ./unpack_hcp_dwi.sh $filename
 
-        echo "Unpacking ${filename} track files..." &&
-        ./unpack_hcp_trks.sh $filename &&
+        if [ ${filename} == ${subjectID} ] # Only HCP subjects have fibers
+        then
+            echo "Unpacking ${filename} track files..." &&
+            ./unpack_hcp_trks.sh $filename &&
 
-        echo "Mergin ${filename} track files with keep ${keep_frac}..." &&
-        python merge_tracks.py "subjects/${filename}/tracts" \
-        --keep "${keep_frac}" \
-        --weighted \
-        --out_dir "subjects/${filename}/${merge_out_dir}" &&
+            echo "Merging ${filename} track files with keep ${keep_frac}..." &&
+            python merge_tracks.py "subjects/${filename}/tracts" \
+            --keep "${keep_frac}" \
+            --weighted \
+            --out_dir "subjects/${filename}/${merge_out_dir}" &&
 
-        echo "Resampling ${filename} track files with keep ${keep_merge}..." &&
-        python resample_trk.py "subjects/${filename}/${merge_out_dir}/merged_W${ext_num}.trk" &&
-        
+            echo "Resampling ${filename} track files with keep ${keep_merge}..." &&
+            python resample_trk.py "subjects/${filename}/${merge_out_dir}/merged_W${ext_num}.trk"
+        fi
+
         echo "Estimating FOD for ${filename}..." &&
         ./est_fod.sh ${filename}
         
