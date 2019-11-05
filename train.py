@@ -1,241 +1,110 @@
 import os
 import argparse
-import datetime
 import shutil
-import yaml
-import importlib
-import logging
 
-from tensorflow.keras import callbacks
-import tensorflow as tf
+from tensorflow.keras import optimizers as keras_optimizers
 import numpy as np
-from tensorflow.keras import backend as K
-
-from tensorflow.keras.callbacks import (TensorBoard, ModelCheckpoint,
-    ReduceLROnPlateau, Callback)
-from multiprocessing import cpu_count
-from GPUtil import getFirstAvailable
 
 from models import MODELS
-from utils import training as T
+from utils.training import setup_env, timestamp, parse_callbacks
 
+import configs
 
-def train(model_name,
-          train_path,
-          eval_path,
-          max_n_samples,
-          batch_size,
-          epochs,
-          learning_rate,
-          optimizer,
-          suffix,
-          loss_weight,
-          temperature,
-          out_dir):
+@setup_env
+def train(config=None):
 
-    # Load Model ###############################################################
-
-    input_shape = tuple(np.load(train_path, allow_pickle=True)["input_shape"])
-
-    if "Entrack" in model_name:
-        temp = T.Temperature(temperature)
-        model = MODELS[model_name](input_shape, temp)
-    elif "RNN" in model_name:
-        model = MODELS[model_name](input_shape, batch_size=batch_size)
-    else:
-        model = MODELS[model_name](input_shape, loss_weight=loss_weight)
-
-    # Load Sampler #############################################################
-
-    sampler = getattr(T, model.sample_class)
-
-    train_seq = sampler(
-        train_path,
-        batch_size,
-        max_n_samples=max_n_samples
-    )
-
-    # Load Callbacks ###########################################################
-
-    if "Entrack" in model_name:
-        callbacks = [
-            T.HarmonicTemperatureSchedule(
-            T_start=temp,
-            T_end=0.0001,
-            n_steps=len(train_seq)*epochs
-            )
-        ]
-    elif "RNN" in model_name:
-        callbacks = [T.RNNResetCallBack(train_seq.reset_batches)]
-    else:
-        callbacks = []
-
-    # Run Training #############################################################
-    
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-    out_dir = os.path.join(out_dir, model_name, suffix, timestamp)
+    out_dir = os.path.join("models",
+                           config["model_name"],
+                           config.get("model_type", ""),
+                           timestamp())
     os.makedirs(out_dir, exist_ok=True)
+    configs.deep_update(config, {"out_dir": out_dir})
+    
+    configs.add(config, to=".running")
 
-    callbacks.append(ReduceLROnPlateau(monitor='val_loss',
-                          factor=0.5,
-                          patience=5,
-                          min_lr=0.0001)
-    )
-    if eval_path is not None:
-        eval_seq = sampler(
-            eval_path,
-            max_n_samples=max_n_samples,
-            istraining=False)
-        callbacks.append(
-            ModelCheckpoint(
-                os.path.join(out_dir, "model.{epoch:02d}-{val_loss:.2f}.h5"),
-                save_best_only=True,
-                save_weights_only=False,
-                period=1)
-        )
-    else:
-        eval_seq = None
+    model = MODELS[config["model_name"]](config)
 
-    # Put Tensorboard callback at the end to catch logs from previous callbacks
-    if hasattr(model, "summaries"):
-        callbacks.append(
-            getattr(T, model.summaries)(
-                eval_seq=eval_seq,
-                log_dir=out_dir,
-                write_graph=False,
-                update_freq=len(train_seq)//50, # every 50-th batch
-                profile_batch=0)
-        )
     try:
-        print("\nStart training, saving to {}\n".format(out_dir))
+        train_seq = model.get_sequence(config["train_path"],
+            config["batch_size"])
+        eval_seq = model.get_sequence(config.get("eval_path"),
+            config["batch_size"], istraining=False)
+        configs.deep_update(config, {"train_seq": train_seq,
+                                     "eval_seq": eval_seq})
 
-        no_exception = True
+        if "RNN" in config["model_name"]:
+            callback_config = {'callbacks': {'RNNResetCallBack': {'reset_batches': train_seq.reset_batches}}}
+        callbacks = parse_callbacks(callback_config["callbacks"])
 
-        optimizer=getattr(tf.keras.optimizers, optimizer)(learning_rate)
+        optimizer=getattr(keras_optimizers, config["optimizer"])(
+            **config["opt_params"]
+        )
         model.compile(optimizer)
 
-        do_shuffle = False if model_name == 'rnn' else True
-        train_history = model.keras.fit_generator(
+        configs.save(config)
+
+        print("\nStart training...")
+        no_exception = True
+        model.keras.fit_generator(
             train_seq,
-            epochs=epochs,
-            validation_data=eval_seq,
             callbacks=callbacks,
-            max_queue_size=4 * batch_size,
-            use_multiprocessing=True,
-            shuffle=do_shuffle,
-            workers=cpu_count()
+            validation_data=eval_seq,
+            epochs=config["epochs"],
+            shuffle=config["shuffle"],
+            max_queue_size=4 * config["batch_size"],
+            verbose=1
         )
-    #except KeyboardInterrupt:
-    #    os.rename(out_dir, out_dir + "_stopped")
-    #    out_dir = out_dir + "_stopped"
+    except KeyboardInterrupt:
+        model.stop_training = True
     except Exception as e:
         shutil.rmtree(out_dir)
         no_exception = False
         raise e
     finally:
+        configs.remove(config, _from=".running")
         if no_exception:
-            config=dict(
-                model_name=model_name,
-                train_path=train_path,
-                eval_path=str(eval_path),
-                max_n_samples=str(max_n_samples),
-                batch_size=str(batch_size),
-                epochs=str(epochs),
-                learning_rate=str(learning_rate),
-                optimizer=optimizer._keras_api_names[0])
-            if "Hybrid" in model_name:
-                config["loss_weight"] = str(loss_weight)
-            if "Entrack" in model_name:
-                config["temperature"] = str(temperature)
+            configs.add(config, to=".archive")
+            model_path = os.path.join(out_dir, "final_model.h5")
+            print("\nSaving {}".format(model_path))
+            model.keras.save(model_path)
 
-            config_path = os.path.join(out_dir, "config" + ".yml")
-            print("\nSaving {}".format(config_path))
-            with open(config_path, "w") as file:
-                yaml.dump(config, file, default_flow_style=False)
-
-            if eval_path is None:
-                model_path = os.path.join(out_dir, "model.h5")
-                print("Saving {}".format(model_path))
-                model.keras.save(model_path)
-
-    return model
+    return model.keras
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Train a fiber tracking model")
 
-    parser.add_argument("model_name", type=str, choices=list(MODELS.keys()),
+    parser.add_argument("config_path", type=str, nargs="?",
+        help="Path to model config.")
+
+    parser.add_argument("--model_name", type=str, choices=list(MODELS.keys()),
         help="Name of model to be trained.")
 
-    parser.add_argument("train_path", type=str,
-        help="Path to training samples file generated by "
-        "`generate_conditional_samples.py` are saved")
+    parser.add_argument("--model_type", type=str,
+        choices=["prior", "conditional"],
+        help="Specify if model has type conditional or prior.")
 
-    parser.add_argument("--eval", type=str, default=None, dest="eval_path",
-        help="Path to evaluation samples file generated by "
-        "`generate_conditional_samples.py` are saved")
+    parser.add_argument("--train_path", type=str,
+        help="Path to training samples.")
 
-    parser.add_argument("--max_n_samples", type=int, default=np.inf,
-        help="Maximum number of samples to be used for both training and "
-        "evaluation")
+    parser.add_argument("--eval", type=str, dest="eval_path",
+        help="Path to evaluation samples.")
 
-    parser.add_argument("--batch_size", type=int, default=256,
-                        help="batch size")
+    parser.add_argument("--epochs", type=int, help="Number of training epochs")
 
-    parser.add_argument("--epochs", type=int, default=10,
-                        help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, help="batch size")
 
-    parser.add_argument("--lr", type=float, default=0.001, dest="learning_rate",
+    parser.add_argument("--opt", type=str, dest="optimizer",
+        help="Optimizer name.")
+
+    parser.add_argument("--lr", type=float, dest="learning_rate",
                         help="Learning rate.")
 
-    parser.add_argument("--opt", type=str, default="Adam", dest="optimizer",
-                        help="Optimizer name.")
+    args, more_args = parser.parse_known_args()
 
-    parser.add_argument("--suffix", type=str, default="",
-        help="Model subfolder to distinguish e.g. conditional and prior models.")
+    config = configs.compile_from(args.config_path, args, more_args)
 
-    parser.add_argument("--out", type=str, default='models', dest="out_dir",
-        help="Directory to save the training results")
+    configs.check(config)
 
-    parser.add_argument("--lw", type=float, default=None, dest="loss_weight",
-        help="Total weight of terminal loss, must be set for hybrid models.")
-
-    parser.add_argument("--T", type=float, default=None, dest="temperature",
-        help="Temperature, must be set for Entrack models.")
-
-    args = parser.parse_args()
-
-    if "Hybrid" in args.model_name:
-        if args.loss_weight is None:
-            parser.error("Hybrid models require loss_weight (--lw).")
-
-    if "Entrack" in args.model_name:
-        if args.temperature is None:
-            parser.error("Entrack models require temperature (--T).")
-
-    os.environ['PYTHONHASHSEED'] = '0'
-    tf.compat.v1.set_random_seed(3)
-    np.random.seed(3)
-
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
-    logging.getLogger('tensorflow').setLevel(logging.ERROR)
-
-    try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(order="load",
-            maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
-    except Exception as e:
-        print(str(e))
-
-    train(args.model_name,
-          args.train_path,
-          args.eval_path,
-          args.max_n_samples,
-          args.batch_size,
-          args.epochs,
-          args.learning_rate,
-          args.optimizer,
-          args.suffix,
-          args.loss_weight,
-          args.temperature,
-          args.out_dir)
+    train(config)

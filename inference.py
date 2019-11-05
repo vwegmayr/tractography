@@ -1,9 +1,9 @@
 import os
-import yaml
 import gc
 import argparse
 import datetime
 import logging
+import yaml
 
 import nibabel as nib
 import numpy as np
@@ -22,6 +22,8 @@ from time import time
 
 from models import MODELS
 from models import RNN as RNNModel
+
+from utils.config import load
 
 os.environ['PYTHONHASHSEED'] = '0'
 tf.compat.v1.set_random_seed(42)
@@ -42,7 +44,7 @@ class MarginHandler(object):
     def xyz2ijk(self, xyz):
         ijk = (xyz.T).copy()
         self.affi.dot(ijk, out=ijk)
-        return np.round(ijk + 0.5, out=ijk).astype(int, copy=False)
+        return np.round(ijk, out=ijk).astype(int, copy=False)
 
 
 class Prior(MarginHandler):
@@ -112,7 +114,7 @@ def run_inference(
         ijk = (coords.T).copy()
         dwi_affi.dot(ijk, out=ijk)
         if snap:
-            return np.round(ijk + 0.5, out=ijk).astype(int, copy=False).T
+            return np.round(ijk, out=ijk).astype(int, copy=False).T
         else:
             return ijk.T
 
@@ -120,8 +122,7 @@ def run_inference(
 
     config_path = os.path.join(os.path.dirname(model_path), "config.yml")
 
-    with open(config_path, "r") as config_file:
-        model_name = yaml.load(config_file)["model_name"]
+    model_name = load(config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(model_path,
@@ -180,11 +181,17 @@ def run_inference(
         chunk = 2**15 # 32768
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
         for c in range(n_chunks):
+
+            outputs = model(inputs[c * chunk : (c + 1) * chunk])
+
+            if isinstance(outputs, list):
+                outputs = outputs[0]
+
             if predict_fn == "mean":
-                v = model(inputs[c * chunk : (c + 1) * chunk]).mean_direction.numpy()
+                v = outputs.mean_direction.numpy()
                 # v = normalize(v)
             elif predict_fn == "sample":
-                v = model(inputs[c * chunk : (c + 1) * chunk]).sample().numpy()
+                v = outputs.sample().numpy()
             vout[c * chunk : (c + 1) * chunk] = v
 
         rout = xyz[:, -1, :3] + step_size * vout
@@ -279,7 +286,7 @@ def run_inference(
 
 def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, step_size):
 
-    n_seeds = len(xyz)
+    n_seeds = len(xyz) ## duplicated before, so multiple of 2
     fiber_idx = np.hstack([
         np.arange(n_seeds//2, dtype="int32"),
         np.arange(n_seeds//2,  dtype="int32")
@@ -447,11 +454,12 @@ def run_rnn_inference(
 
         prediction_model.reset_states()
         print("Batch {0} with shape {1}".format(i // (batch_size // 2), xyz_batch.shape))
-        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator, prediction_model, dwi, dwi_affi, max_steps, step_size)
+        batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
+            prediction_model, dwi, dwi_affi, max_steps, step_size)
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
-    fibers = [f[0] for f in fibers]
+    fibers = [f[0] for f in fibers] ## is this OK? 
 
     tractogram = Tractogram(
         streamlines=ArraySequence(fibers),
@@ -536,12 +544,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     config_path = os.path.join(os.path.dirname(args.model_path), "config.yml")
-    with open(config_path, "r") as config_file:
-        model_name = yaml.load(config_file)["model_name"]
 
-    if model_name == "RNN":
+    if load(config_path, "model_name") == "RNN":
         run_rnn_inference(
             args.model_path,
             args.dwi_path,

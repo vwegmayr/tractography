@@ -26,12 +26,14 @@ fi
 
 unzip "hcp_zips/${1}_3T_Diffusion_preproc.zip" &&
 
-mv "${1}/T1w/Diffusion/"* "${dir}" &&
+subjectID=$(grep -Po "[0-9]+" <<< $1)
+
+mv "${subjectID}/T1w/Diffusion/"* "${dir}" &&
 
 rm -r "${dir}/eddylogs" &&
 rm "${dir}/grad_dev.nii.gz" &&
 
-rm -r $1 &&
+rm -r ${subjectID} &&
 
 # Perform basic preprocessing ##################################################
 

@@ -6,7 +6,16 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import (Input, Reshape, Dropout,
     BatchNormalization, Lambda, Dense, GRU)
 
+from utils.config import deep_update
+from utils.training import Temperature
+
+from utils import sequences
+
 tfd = tfp.distributions
+
+
+def mean(_, x):
+    return K.mean(x)
 
 
 def fvm_entropy(kappa):
@@ -72,7 +81,22 @@ class FisherVonMises(tfd.VonMisesFisher):
         return np.log(2*np.pi) + kappa + tf.math.log1p(- expk2) - K.log(kappa)
         
 
-class FvM(object):
+class Model(object):
+    """docstring for Model"""
+    
+    def get_sequence(self, sample_path, batch_size, istraining=True):
+        if sample_path is None:
+            return None
+        return getattr(sequences, self.sample_class)(sample_path,
+                                                     batch_size,
+                                                     istraining)
+
+    @staticmethod
+    def check(config):
+        pass
+        
+
+class FvM(Model):
     """docstring for FvM"""
     model_name="FvM"
 
@@ -125,7 +149,7 @@ class FvM(object):
             metrics=[self.custom_objects["mean_neg_dot_prod"]])
 
 
-class FvMHybrid(object):
+class FvMHybrid(Model):
     """docstring for FvMHybrid"""
     model_name="FvMHybrid"
 
@@ -194,7 +218,7 @@ class FvMHybrid(object):
         )
 
 
-class RNN(object):
+class RNN(Model):
 
     model_name="RNN"
 
@@ -202,7 +226,11 @@ class RNN(object):
 
     summaries = "RNNSummaries"
 
-    def __init__(self, input_shape, batch_size, **kwargs):
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        batch_size = config["batch_size"]
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
         self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
 
@@ -224,9 +252,11 @@ class RNN(object):
             loss = {'output1': 'mean_squared_error'})
 
 
-class Entrack(FvM):
+class Entrack(Model):
     """docstring for Entrack"""
     model_name="Entrack"
+
+    summaries = "EntrackSummaries"
 
     sample_class = "EntrackSamples"
 
@@ -234,10 +264,18 @@ class Entrack(FvM):
             "mean_fvm_cost": mean_fvm_cost,
             "mean_neg_fvm_entropy": mean_neg_fvm_entropy,
             "mean_neg_dot_prod": mean_neg_dot_prod,
+            "kappa_mean": mean,
             "DistributionLambda": tfp.layers.DistributionLambda
         }
 
-    def __init__(self, input_shape, temperature):
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
+        temperature = Temperature(config["temperature"])
+
+        deep_update(config, {"temperature": temperature})
 
         inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)
@@ -257,11 +295,13 @@ class Entrack(FvM):
         x = Dense(2048, activation="relu")(inputs)
         x = Dense(2048, activation="relu")(x)
         x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
         return x
 
     @staticmethod
     def kappa(x):
         kappa = Dense(1024, activation="relu")(x)
+        kappa = Dense(1024, activation="relu")(kappa)
         kappa = Dense(1, activation="relu")(kappa)
         kappa = Lambda(lambda t: K.squeeze(t, 1) + 0.001, name="kappa")(kappa)
         return kappa
@@ -269,6 +309,7 @@ class Entrack(FvM):
     @staticmethod
     def mu(x):
         mu = Dense(1024, activation="relu")(x)
+        mu = Dense(1024, activation="relu")(mu)
         mu = Dense(3, activation="linear")(mu)
         mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
         return mu
@@ -291,6 +332,12 @@ class Entrack(FvM):
                 "kappa": self.custom_objects["mean_neg_fvm_entropy"]
             },
             loss_weights={"fvm": 1.0, "kappa": self.temperature},
-            metrics={"fvm": self.custom_objects["mean_neg_dot_prod"]}
+            metrics={"fvm": self.custom_objects["mean_neg_dot_prod"],
+                     "kappa": self.custom_objects["kappa_mean"]}
         )
 
+    @staticmethod
+    def check(config):
+        """Assert model specific parameters"""
+        assert "temperature" in config
+        assert config["temperature"] > 0
