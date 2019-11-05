@@ -141,14 +141,14 @@ def _sort_and_groupby(all_inputs, all_outputs, all_terminals):
     outs = []
     terminals = []
     for length, same_length_arrays in group:
-        (same_length_arrays1, same_length_arrays2, same_length_arrays3 = 
-            itertools.tee(same_length_arrays, 3))
+        same_length_arrays1, same_length_arrays2, same_length_arrays3 = \
+            itertools.tee(same_length_arrays, 3)
         inputs.append(np.concatenate([np.array(arr[0])[np.newaxis, :]
-            for arr in same_length_arrays1], axis=0))
+                                      for arr in same_length_arrays1], axis=0))
         outs.append(np.concatenate([np.array(arr[1])[np.newaxis, :]
-            for arr in same_length_arrays2], axis=0))
+                                    for arr in same_length_arrays2], axis=0))
         terminals.append(np.concatenate([np.array(arr[2])[np.newaxis, :]
-            for arr in same_length_arrays3], axis=0))
+                                         for arr in same_length_arrays3], axis=0))
 
     return inputs, outs, terminals
 
