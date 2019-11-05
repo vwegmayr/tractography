@@ -6,8 +6,10 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import (Input, Reshape, Dropout,
     BatchNormalization, Lambda, Dense, GRU)
 
-import configs
-from utils import sequences, Temperature
+from utils.config import deep_update
+from utils.training import Temperature
+
+from utils import sequences
 
 tfd = tfp.distributions
 
@@ -263,7 +265,7 @@ class Entrack(Model):
 
         temperature = Temperature(config["temperature"])
 
-        configs.deep_update(config, {"temperature": temperature})
+        deep_update(config, {"temperature": temperature})
 
         inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)

@@ -6,13 +6,12 @@ from tensorflow.keras import optimizers as keras_optimizers
 import numpy as np
 
 from models import MODELS
-from utils import setup_env, timestamp, parse_callbacks
+from utils.training import setup_env, timestamp, parse_callbacks
 
 import configs
 
-
 @setup_env
-def train(config):
+def train(config=None):
 
     out_dir = os.path.join("models",
                            config["model_name"],
@@ -20,28 +19,30 @@ def train(config):
                            timestamp())
     os.makedirs(out_dir, exist_ok=True)
     configs.deep_update(config, {"out_dir": out_dir})
+    
+    configs.add(config, to=".running")
 
     model = MODELS[config["model_name"]](config)
 
-    train_seq = model.get_sequence(config["train_path"], config["batch_size"])
-    eval_seq = model.get_sequence(config["eval_path"], config["batch_size"],
-        istraining=False)
-    configs.deep_update(config, {"train_seq": train_seq, "eval_seq": eval_seq})
-
-    callbacks = parse_callbacks(config["callbacks"])
-
-    optimizer=getattr(keras_optimizers, config["optimizer"])(
-        **config["optimizer_params"]
-    )
-    model.compile(optimizer)
-
-    configs.save(config)
-
     try:
+        train_seq = model.get_sequence(config["train_path"],
+            config["batch_size"])
+        eval_seq = model.get_sequence(config["eval_path"],
+            config["batch_size"], istraining=False)
+        configs.deep_update(config, {"train_seq": train_seq,
+                                     "eval_seq": eval_seq})
+
+        callbacks = parse_callbacks(config["callbacks"])
+
+        optimizer=getattr(keras_optimizers, config["optimizer"])(
+            **config["opt_params"]
+        )
+        model.compile(optimizer)
+
+        configs.save(config)
+
         print("\nStart training...")
-
         no_exception = True
-
         model.keras.fit_generator(
             train_seq,
             callbacks=callbacks,
@@ -49,6 +50,7 @@ def train(config):
             epochs=config["epochs"],
             shuffle=config["shuffle"],
             max_queue_size=4 * config["batch_size"],
+            verbose=1
         )
     except KeyboardInterrupt:
         model.stop_training = True
@@ -57,12 +59,14 @@ def train(config):
         no_exception = False
         raise e
     finally:
+        configs.remove(config, _from=".running")
         if no_exception:
+            configs.add(config, to=".archive")
             model_path = os.path.join(out_dir, "final_model.h5")
             print("\nSaving {}".format(model_path))
             model.keras.save(model_path)
 
-    return model
+    return model.keras
 
 
 if __name__ == '__main__':

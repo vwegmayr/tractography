@@ -1,36 +1,28 @@
 import os
 import yaml
 
-import models
+from models import MODELS
 
-import tensorflow.keras.backend as K
-import numpy as np
+from tensorflow.keras.backend import get_value
 
-from utils import Temperature
+from utils.training import Temperature
+
+from utils.config import *
+
+from pprint import pprint
+
+from utils.filelock import filelock
 
 
 def compile_from(config_path, args, more_args):
 
-    if config_path is not None:
-
-        assert os.path.exists(config_path)
-
-        with open(config_path, "r") as config_file:
-            config = yaml.load(config_file, Loader=yaml.FullLoader)
-
-    else:
-        config = {}
+    config = load(config_path)
 
     args = {k: v for k,v in vars(args).items() if v is not None}
 
     config.update(args)
 
-    for x in more_args:
-        assert "--" in x[0]
-
-    more_args = {x[0][2:]: x[1] for x in more_args if x[1] is not None}
-
-    config.update(more_args)
+    nested_update(config, parse_more_args(more_args))
 
     return config
 
@@ -47,7 +39,7 @@ def check(config):
 
     assert config["model_type"] in ["prior", "conditional"]
 
-    assert config["model_name"] in list(models.MODELS.keys())
+    assert config["model_name"] in list(MODELS.keys())
 
     assert "train_path" in config
     assert os.path.exists(config["train_path"])
@@ -59,12 +51,12 @@ def check(config):
     assert "batch_size" in config
 
     assert "optimizer" in config
-    assert "optimizer_params" in config
-    assert "learning_rate" in config["optimizer_params"]
+    assert "opt_params" in config
+    assert "learning_rate" in config["opt_params"]
 
     # ==========================================================================
 
-    models.MODELS[config["model_name"]].check(config)
+    MODELS[config["model_name"]].check(config)
 
     return config
 
@@ -73,40 +65,34 @@ def save(config):
 
     sanitize(config)
 
-    config_path = os.path.join(config["out_dir"], "config" + ".yml")
+    config_path = os.path.join(config["out_dir"], "config.yml")
     print("\nSaving {}".format(config_path))
-    with open(config_path, "w") as file:
-        yaml.dump(config, file, default_flow_style=False)
+    with filelock.FileLock("config_path"):   
+        with open(config_path, "w") as file:
+            yaml.dump(config, file, default_flow_style=False)
 
 
-def deep_update(config, update_dict):
+def add(config, to=".running"):
+    config_path = os.path.join(config["out_dir"], "config.yml\n")
 
-    if isinstance(config, dict):
-        config.update((k, v) for k, v in update_dict.items() if k in config)
-
-        for v in config.values():
-            deep_update(v, update_dict)
-
-
-def sanitize(config):
-
-    if isinstance(config, dict):
-        
-        for k, v in config.items():
-
-            if isinstance(v, dict):
-                sanitize(v)
-
-            elif isinstance(v, Temperature):
-                config[k] = float(np.round(K.get_value(v), 6))
-
-            elif not (isinstance(v, (str, list)) or is_number(v)):
-                config[k] = None
+    with filelock.FileLock(to): 
+        with open(to, "a") as file:
+            file.write(config_path)
 
 
 
-def is_number(obj):
-    try:
-        return (obj * 0) == 0
-    except:
-        return False
+def remove(config, _from=".running"):
+    config_path = os.path.join(config["out_dir"], "config.yml")
+
+    with filelock.FileLock(_from):
+
+        with open(_from, "r") as file:
+            runs = list(file.readlines())
+
+        with open(_from, "w") as file:
+            for run in runs:
+                if run.strip("\n") != config_path:
+                    file.write(run)
+
+        if len(runs) == 1:
+            os.remove(_from)

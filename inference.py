@@ -1,9 +1,9 @@
 import os
-import yaml
 import gc
 import argparse
 import datetime
 import logging
+import yaml
 
 import nibabel as nib
 import numpy as np
@@ -22,6 +22,8 @@ from time import time
 
 from models import MODELS
 from models import RNN as RNNModel
+
+from utils import config
 
 os.environ['PYTHONHASHSEED'] = '0'
 tf.compat.v1.set_random_seed(42)
@@ -120,8 +122,7 @@ def run_inference(
 
     config_path = os.path.join(os.path.dirname(model_path), "config.yml")
 
-    with open(config_path, "r") as config_file:
-        model_name = yaml.load(config_file)["model_name"]
+    model_name = config.load(config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(model_path,
@@ -180,6 +181,12 @@ def run_inference(
         chunk = 2**15 # 32768
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
         for c in range(n_chunks):
+
+            outputs = model(inputs[c * chunk : (c + 1) * chunk])
+
+            if isinstance(outputs, list):
+                outputs = outputs[0]
+
             if predict_fn == "mean":
                 v = model(inputs[c * chunk : (c + 1) * chunk]).mean_direction.numpy()
                 # v = normalize(v)

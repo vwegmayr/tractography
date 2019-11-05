@@ -14,6 +14,7 @@ from utils import summaries as tracking_summaries
 from utils import callbacks as tracking_callbacks
 from tensorflow.python.keras import callbacks as keras_callbacks
 
+
 class Temperature(ResourceVariable):
     """docstring for Temperature"""
     def __init__(self, T=0.0, name="Temperature"):
