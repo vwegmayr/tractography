@@ -23,7 +23,7 @@ from time import time
 from models import MODELS
 from models import RNN as RNNModel
 
-from utils import config
+from utils.config import load
 
 os.environ['PYTHONHASHSEED'] = '0'
 tf.compat.v1.set_random_seed(42)
@@ -122,7 +122,7 @@ def run_inference(
 
     config_path = os.path.join(os.path.dirname(model_path), "config.yml")
 
-    model_name = config.load(config_path, "model_name")
+    model_name = load(config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(model_path,
@@ -188,10 +188,10 @@ def run_inference(
                 outputs = outputs[0]
 
             if predict_fn == "mean":
-                v = model(inputs[c * chunk : (c + 1) * chunk]).mean_direction.numpy()
+                v = outputs.mean_direction.numpy()
                 # v = normalize(v)
             elif predict_fn == "sample":
-                v = model(inputs[c * chunk : (c + 1) * chunk]).sample().numpy()
+                v = outputs.sample().numpy()
             vout[c * chunk : (c + 1) * chunk] = v
 
         rout = xyz[:, -1, :3] + step_size * vout
@@ -544,12 +544,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     config_path = os.path.join(os.path.dirname(args.model_path), "config.yml")
-    with open(config_path, "r") as config_file:
-        model_name = yaml.load(config_file)["model_name"]
 
-    if model_name == "RNN":
+    if load(config_path, "model_name") == "RNN":
         run_rnn_inference(
             args.model_path,
             args.dwi_path,
