@@ -56,7 +56,7 @@ def generate_conditional_samples(dwi,
     done=False
     n = 0
     for tract in tracts:
-        last_pt = len(tract.streamline) - 1
+        last_pt = min(len(tract.streamline) - 1, (n_samples - n) // 2)
         for i, pt in enumerate(tract.streamline):
             #-------------------------------------------------------------------
             idx = dwi_xyz2ijk(pt)
@@ -165,8 +165,7 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
     done=False
     n = 0
     for tract in tracts:
-        tract_n_samples = min((len(tract.streamline) - 1), 
-        (n_samples - n) // 2) # TODO: Check it's fine
+        tract_n_samples = min((len(tract.streamline) - 1), (n_samples - n) // 2)
 
         inputs = np.zeros([tract_n_samples, 
             3 + 1 + dwi.shape[-1] * block_size ** 3], dtype="float32")
@@ -187,17 +186,19 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
             d /= dnorm
             #-------------------------------------------------------------------
 
-            if i == 0:  # First is only used as the end point of the reverse direction
+            if i == 0:
+                # First is only used as the end point of the reverse direction
                 vout = - tract.data_for_points["t"][i]
                 vin = - tract.data_for_points["t"][i + 1]
 
-                reverse_inputs[tract_n_samples - 1 - i] = np.hstack(
+                reverse_inputs[i - 1] = np.hstack(
                     [-vin, d, dnorm])
-                reverse_outgoing[tract_n_samples - 1 - i] = -vout
-                reverse_isterminal[tract_n_samples - 1 - i] = 1
+                reverse_outgoing[i - 1] = -vout
+                reverse_isterminal[i - 1] = 1
                 n += 1
 
-            elif i == last_pt: # Last is only used as the last point of usual direction
+            elif i == last_pt:
+                # Last is only used as the last point of usual direction
                 vout = tract.data_for_points["t"][i]
                 vin = tract.data_for_points["t"][i - 1]
 
@@ -205,7 +206,8 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
                 outgoing[i - 1] = vout
                 isterminal[i - 1] = 1
                 n += 1
-            else:  # Other points are used in both direction
+            else:
+                # Other points are used in both direction
                 vout = tract.data_for_points["t"][i]
                 vin = tract.data_for_points["t"][i - 1]
 
@@ -213,9 +215,9 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
                 outgoing[i - 1] = vout
                 n += 1
 
-                reverse_inputs[tract_n_samples - 1 - i] = np.hstack(
+                reverse_inputs[i - 1] = np.hstack(
                     [-vin, d, dnorm])
-                reverse_outgoing[tract_n_samples - 1 - i] = -vout
+                reverse_outgoing[i - 1] = -vout
                 n += 1
 
 
