@@ -294,7 +294,7 @@ def generate_samples(dwi_path,
 
     sample_path = os.path.join(out_dir, "samples.npz")
     print("\nSaving {}".format(sample_path))
-    input_shape = ((1, samples["inputs"][0].shape[-1]) if model == 'rnn' 
+    input_shape = ((1, samples["inputs"][0].shape[-1]) if model == 'RNN'
         else samples["inputs"].shape[1:])
     np.savez_compressed(
         sample_path,

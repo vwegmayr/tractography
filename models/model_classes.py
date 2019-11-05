@@ -85,9 +85,15 @@ class Model(object):
     """docstring for Model"""
     
     def get_sequence(self, sample_path, batch_size, istraining=True):
+        if sample_path is None:
+            return None
         return getattr(sequences, self.sample_class)(sample_path,
                                                      batch_size,
                                                      istraining)
+
+    @staticmethod
+    def check(config):
+        pass
         
 
 class FvM(Model):
@@ -220,7 +226,11 @@ class RNN(Model):
 
     summaries = "RNNSummaries"
 
-    def __init__(self, input_shape, batch_size, **kwargs):
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        batch_size = config["batch_size"]
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
         self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
 

@@ -35,9 +35,8 @@ def check(config):
 
     assert "model_name" in config
 
-    assert "model_type" in config
-
-    assert config["model_type"] in ["prior", "conditional"]
+    if "model_type" in config:
+        assert config["model_type"] in ["prior", "conditional"]
 
     assert config["model_name"] in list(MODELS.keys())
 
@@ -78,7 +77,6 @@ def add(config, to=".running"):
     with filelock.FileLock(to): 
         with open(to, "a") as file:
             file.write(config_path)
-
 
 
 def remove(config, _from=".running"):

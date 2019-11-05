@@ -9,3 +9,6 @@ models/
 scoring/scoring_data
 scoring/results
 *.pyc
+.archive
+.running
+configs/*
