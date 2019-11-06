@@ -225,7 +225,9 @@ def run_inference(config=None, gpu_queue=None):
             os.path.join("envs", env_name), os.path.join("envs", "scoring")
             )
 
-        trimmed_path = fiber_path[:-4] + "_trimmed.trk"
+        ismrm_version = config["dwi_path"].split("/")[-2].split("_")[1]
+
+        trimmed_path = fiber_path[:-4] + "_{}_trimmed.trk".format(ismrm_version)
 
         cmd = [
             "track_vis", fiber_path, "-nr", "-l",
