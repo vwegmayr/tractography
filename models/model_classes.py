@@ -228,8 +228,12 @@ class RNN(Model):
 
     def __init__(self, config):
 
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        if 'input_shape' in config:
+            input_shape = config['input_shape']
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
         batch_size = config["batch_size"]
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
         self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
