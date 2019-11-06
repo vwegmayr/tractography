@@ -388,7 +388,7 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
                 other_end = fibers[gidx][0]
                 merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
                 fibers[gidx] = [merged_fiber]
-            already_terminated = np.concatenate([already_terminated, idx])
+            already_terminated = np.concatenate([already_terminated, [idx]])
 
     return fibers
 
@@ -452,7 +452,8 @@ def run_rnn_inference(
         xyz_batch = np.hstack([xyz_batch, np.ones([n_seeds_batch, 1])])  # add affine dimension
         xyz_batch = xyz_batch.reshape(-1, 1, 4)  # (fiber, segment, coord)
 
-        if i == batch_size//2 * (n_seeds // (batch_size // 2)): # Make a last model for the remaining batch
+        # Make a last model for the remaining batch
+        if i == batch_size//2 * (n_seeds // (batch_size // 2)):
             last_batch_size = (n_seeds - i) * 2
             model_config['batch_size'] = last_batch_size
             prediction_model = RNNModel(model_config).keras
@@ -465,7 +466,7 @@ def run_rnn_inference(
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
-    fibers = [f[0] for f in fibers] ## is this OK? 
+    fibers = [f[0] for f in fibers]
 
     tractogram = Tractogram(
         streamlines=ArraySequence(fibers),
