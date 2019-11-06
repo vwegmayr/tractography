@@ -12,3 +12,4 @@ scoring/results
 .running
 configs/*
 **/*.pyc
+**/*.yml

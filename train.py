@@ -6,12 +6,17 @@ from tensorflow.keras import optimizers as keras_optimizers
 import numpy as np
 
 from models import MODELS
-from utils.training import setup_env, timestamp, parse_callbacks
+from utils.training import (setup_env, timestamp, parse_callbacks, 
+    maybe_get_a_gpu)
 
 import configs
 
 @setup_env
-def train(config=None):
+def train(config=None, gpu_queue=None):
+
+    gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
 
     out_dir = os.path.join("models",
                            config["model_name"],
@@ -41,6 +46,7 @@ def train(config=None):
         optimizer=getattr(keras_optimizers, config["optimizer"])(
             **config["opt_params"]
         )
+
         model.compile(optimizer)
 
         configs.save(config)
@@ -69,6 +75,7 @@ def train(config=None):
             model_path = os.path.join(out_dir, "final_model.h5")
             print("\nSaving {}".format(model_path))
             model.keras.save(model_path)
+        gpu_queue.put(gpu_idx)
 
     return model.keras
 
