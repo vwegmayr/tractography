@@ -180,7 +180,8 @@ def run_inference(configs=None, gpu_queue=None):
 
 
     K.clear_session()
-    gpu_queue.put(gpu_idx)
+    if gpu_queue is not None:
+        gpu_queue.put(gpu_idx)
 
     # Save Result
 
