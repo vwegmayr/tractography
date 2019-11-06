@@ -9,3 +9,4 @@ models/
 scoring/scoring_data
 scoring/results
 **/*.pyc
+**/*.yml
