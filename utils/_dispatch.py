@@ -1,4 +1,5 @@
 import argparse
+import glob
 import yaml
 from time import sleep
 
@@ -36,18 +37,31 @@ def n_gpus():
     return len(get_gpus())
 
 
+def model_path_glob_to_more_args(model_path):
+    more_args = ["--model_path"]
+    for path in glob.glob(model_path):
+        more_args.append(path)
+    return more_args
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Dispatch several runs.")
 
-    parser.add_argument("base_config_path", type=str)
-
     parser.add_argument("action", type=str, choices=["training", "inference"],
         default="training")
+
+    parser.add_argument("base_config_path", type=str)
 
     args, more_args = parser.parse_known_args()
 
     config = load(args.base_config_path)
+
+    assert config["action"] == args.action
+
+    if args.action == "inference" and "*" in config["model_path"]:
+        assert "--model_path" not in more_args
+        more_args += model_path_glob_to_more_args(config["model_path"])
 
     configurations = make_configs_from(config, more_args)
 
@@ -62,11 +76,11 @@ if __name__ == '__main__':
     try:
         blockPrint()
         while len(configurations) > 0:
-            while not gpu_queue.empty():
+            while not gpu_queue.empty() and len(configurations) > 0:
                 p = Process(target=target, args=(configurations.pop(), gpu_queue))
                 procs.append(p)
                 p.start()
-                sleep(1.5) # Wait to make sure the timestamp is different
+                sleep(3) # Wait to make sure the timestamp is different
             sleep(check_interval)
 
     except KeyboardInterrupt:

@@ -20,27 +20,30 @@ from GPUtil import getFirstAvailable
 from sklearn.preprocessing import normalize
 from time import time
 
-from subprocess import Popen
+import subprocess
 
 from models import MODELS
 from models import RNN as RNNModel
 
 from utils.config import load
-from utils.inference import Prior, Terminator
+from utils.prediction import Prior, Terminator
 from utils.training import setup_env, maybe_get_a_gpu
+
+import configs
 
 
 @setup_env
-def run_inference(configs=None, gpu_queue=None):
+def run_inference(config=None, gpu_queue=None):
 
     """"""
+    
     gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
 
     print("Loading DWI...") ####################################################
 
-    dwi_img = nib.load(configs['dwi_path'])
+    dwi_img = nib.load(config['dwi_path'])
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
@@ -56,24 +59,24 @@ def run_inference(configs=None, gpu_queue=None):
 
     print("Loading Models...") #################################################
 
-    config_path = os.path.join(os.path.dirname(configs['model_path']), "config.yml")
+    config_path = os.path.join(os.path.dirname(config['model_path']), "config.yml")
 
     model_name = load(config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
-        model = load_model(configs['model_path'],
+        model = load_model(config['model_path'],
                            custom_objects=MODELS[model_name].custom_objects,
                            compile=False)
     else:
-        model = load_model(configs['model_path'], compile=False)
+        model = load_model(config['model_path'], compile=False)
 
-    terminator = Terminator(configs['term_path'], configs['thresh'])
+    terminator = Terminator(config['term_path'], config['thresh'])
 
-    prior = Prior(configs['prior_path'])
+    prior = Prior(config['prior_path'])
 
     print("Initializing Fibers...") ############################################
 
-    seed_file = nib.streamlines.load(configs['seed_path'])
+    seed_file = nib.streamlines.load(config['seed_path'])
     xyz = seed_file.tractogram.streamlines.data
     n_seeds = 2 * len(xyz)
     xyz = np.vstack([xyz, xyz])  # Duplicate seeds for both directions
@@ -94,7 +97,7 @@ def run_inference(configs=None, gpu_queue=None):
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
     dnorm = np.zeros([n_seeds, 1])
     vout = np.zeros([n_seeds, 3])
-    for i in range(configs['max_steps']):
+    for i in range(config['max_steps']):
         t0 = time()
 
         ijk = xyz2ijk(xyz[:,-1,:], snap=True)  # Get coords of latest segement for each fiber
@@ -123,14 +126,14 @@ def run_inference(configs=None, gpu_queue=None):
             if isinstance(outputs, list):
                 outputs = outputs[0]
 
-            if configs['predict_fn'] == "mean":
+            if config['predict_fn'] == "mean":
                 v = outputs.mean_direction.numpy()
                 # v = normalize(v)
-            elif configs['predict_fn'] == "sample":
+            elif config['predict_fn'] == "sample":
                 v = outputs.sample().numpy()
             vout[c * chunk : (c + 1) * chunk] = v
 
-        rout = xyz[:, -1, :3] + configs['step_size'] * vout
+        rout = xyz[:, -1, :3] + config['step_size'] * vout
         rout = np.hstack([rout, np.ones((n_ongoing, 1))]).reshape(-1, 1, 4)
 
         xyz = np.concatenate([xyz, rout], axis=1)
@@ -157,7 +160,7 @@ def run_inference(configs=None, gpu_queue=None):
 
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
             " {:6.0f} steps/sec".format(
-            (i+1), configs['max_steps'], n_seeds-n_ongoing, n_seeds,
+            (i+1), config['max_steps'], n_seeds-n_ongoing, n_seeds,
             100*(1-n_ongoing/n_seeds), n_ongoing / (time() - t0)),
             end="\r"
         )
@@ -178,7 +181,6 @@ def run_inference(configs=None, gpu_queue=None):
             merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
             fibers[gidx] = [merged_fiber]
 
-
     K.clear_session()
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
@@ -191,14 +193,12 @@ def run_inference(configs=None, gpu_queue=None):
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
-
-    out_dir = configs['out_dir']
-    if out_dir is None:
-        out_dir = os.path.dirname(configs['dwi_path'])
-
+    
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+    out_dir = os.path.join(os.path.dirname(config["dwi_path"]),
+        "predicted_fibers", timestamp)
 
-    out_dir = os.path.join(out_dir, "predicted_fibers", timestamp)
+    configs.deep_update(config, {"out_dir": out_dir})
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -209,10 +209,10 @@ def run_inference(configs=None, gpu_queue=None):
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
-        yaml.dump(configs, file, default_flow_style=False)
+        yaml.dump(config, file, default_flow_style=False)
 
 
-    if configs["score"]:
+    if config["score"]:
 
         env = os.environ.copy()
         env_name = str(env["CONDA_DEFAULT_ENV"])
@@ -228,16 +228,17 @@ def run_inference(configs=None, gpu_queue=None):
         trimmed_path = fiber_path[:-4] + "_trimmed.trk"
 
         cmd = [
-            "track_vis", fiber_path, "-nr", "-l", 30, 200, "-o", trimmed_path,
+            "track_vis", fiber_path, "-nr", "-l",
+            "30", "200", "-o", trimmed_path,
             "&&",
             "python", "scoring/scripts/score_tractogram.py", trimmed_path,
-            "--base-dir", "scoring/scoring_data",
+            "--base_dir", "scoring/scoring_data",
             "--out_dir", os.getcwd(),
             "--save_full_vc", "--save_full_ic", "--save_full_nc", "--save_ib",
             "--save_vb"
         ]
 
-        Popen(cmd, env=env, shell=True)
+        subprocess.run(" ".join(cmd), env=env, shell=True)
 
     return tractogram
 
@@ -351,11 +352,11 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
     return fibers
 
 
-def run_rnn_inference(configs):
+def run_rnn_inference(config):
     """"""
     print("Loading DWI...")  ####################################################
-    batch_size = configs['batch_size']
-    dwi_img = nib.load(configs['dwi_path'])
+    batch_size = config['batch_size']
+    dwi_img = nib.load(config['dwi_path'])
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
@@ -363,29 +364,29 @@ def run_rnn_inference(configs):
 
     print("Loading Models...")  #################################################
 
-    config_path = os.path.join(os.path.dirname(configs['model_path']), "config.yml")
+    config_path = os.path.join(os.path.dirname(config['model_path']), "config.yml")
 
     with open(config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
 
     if hasattr(MODELS[model_name], "custom_objects"):
-        trained_model = load_model(configs['model_path'],
+        trained_model = load_model(config['model_path'],
                            custom_objects=MODELS[model_name].custom_objects)
     else:
-        trained_model = load_model(configs['model_path'])
+        trained_model = load_model(config['model_path'])
 
     model_config = {'batch_size': batch_size,
                     'input_shape':  trained_model.input_shape[1:]}
     prediction_model = RNNModel(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
-    terminator = Terminator(configs['term_path'], configs['thresh'])
+    terminator = Terminator(config['term_path'], config['thresh'])
 
-    prior = Prior(configs['prior_path'])
+    prior = Prior(config['prior_path'])
 
     print("Initializing Fibers...")  ############################################
 
-    seed_file = nib.streamlines.load(configs['seed_path'])
+    seed_file = nib.streamlines.load(config['seed_path'])
     xyz = seed_file.tractogram.streamlines.data
     n_seeds = len(xyz)
     fibers = [[] for _ in range(n_seeds)]
@@ -408,7 +409,7 @@ def run_rnn_inference(configs):
         prediction_model.reset_states()
         print("Batch {0} with shape {1}".format(i // (batch_size // 2), xyz_batch.shape))
         batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
-            prediction_model, dwi, dwi_affi, configs['max_steps'], configs['step_size'])
+            prediction_model, dwi, dwi_affi, config['max_steps'], config['step_size'])
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
@@ -419,9 +420,9 @@ def run_rnn_inference(configs):
         affine_to_rasmm=np.eye(4)
     )
 
-    out_dir = configs['out_dir']
+    out_dir = config['out_dir']
     if out_dir is None:
-        out_dir = os.path.dirname(configs['dwi_path'])
+        out_dir = os.path.dirname(config['dwi_path'])
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
 
@@ -436,7 +437,7 @@ def run_rnn_inference(configs):
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
-        yaml.dump(configs, file, default_flow_style=False)
+        yaml.dump(config, file, default_flow_style=False)
 
     return tractogram
 
@@ -449,13 +450,13 @@ if __name__ == '__main__':
     parser.add_argument("config_path", type=str, nargs="?",
                         help="Path to inference config.")
 
-    args = parser.parse_args()
+    args, more_args = parser.parse_known_args()
 
-    configs = load(args.config_path)
+    config = configs.compile_from(args.config_path, args, more_args)
 
-    if configs['model_name'] == "RNN":
-        run_rnn_inference(configs)
+    if config['model_name'] == "RNN":
+        run_rnn_inference(config)
     else:
-        run_inference(configs)
+        run_inference(config)
 
 
