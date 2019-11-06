@@ -253,7 +253,7 @@ class RNN(Model):
     def compile(self, optimizer):
         self.keras.compile(
             optimizer=optimizer,
-            loss = {'output1': 'mean_squared_error'})
+            loss={'output1': 'mean_squared_error'})
 
 
 class Entrack(Model):
