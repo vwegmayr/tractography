@@ -96,7 +96,7 @@ def _get_tracts_over_grid(tract_fname, ref_anat_fname, tract_attributes,
         if start_at_corner:
             shift = 0.0
         else:
-            shift = 0.5
+            shift = 0.0
 
         if shift != 0.5:
             print("!!! CAUTION USING shift = {} !!!".format(shift))

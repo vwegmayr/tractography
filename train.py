@@ -75,7 +75,8 @@ def train(config=None, gpu_queue=None):
             model_path = os.path.join(out_dir, "final_model.h5")
             print("\nSaving {}".format(model_path))
             model.keras.save(model_path)
-        gpu_queue.put(gpu_idx)
+        if gpu_queue is not None:
+            gpu_queue.put(gpu_idx)
 
     return model.keras
 

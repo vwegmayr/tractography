@@ -20,76 +20,23 @@ from GPUtil import getFirstAvailable
 from sklearn.preprocessing import normalize
 from time import time
 
+from subprocess import Popen
+
 from models import MODELS
 from models import RNN as RNNModel
 
 from utils.config import load
-
-os.environ['PYTHONHASHSEED'] = '0'
-tf.compat.v1.set_random_seed(42)
-np.random.seed(42)
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
-logging.getLogger('tensorflow').setLevel(logging.ERROR)
-
-try:
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
-        order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
-except Exception as e:
-    print(str(e))
+from utils.inference import Prior, Terminator
+from utils.training import setup_env, maybe_get_a_gpu
 
 
-class MarginHandler(object):
+@setup_env
+def run_inference(configs=None, gpu_queue=None):
 
-    def xyz2ijk(self, xyz):
-        ijk = (xyz.T).copy()
-        self.affi.dot(ijk, out=ijk)
-        return np.round(ijk, out=ijk).astype(int, copy=False)
-
-
-class Prior(MarginHandler):
-
-    def __init__(self, prior_path):
-        if ".nii" in prior_path:
-            vec_img = nib.load(prior_path)
-            self.vec = vec_img.get_data()
-            self.affi = np.linalg.inv(vec_img.affine)
-        elif ".h5" in prior_path:
-            raise NotImplementedError # TODO: Implement prior model
-        
-    def __call__(self, xyz):
-        if hasattr(self, "vec"):
-            ijk = self.xyz2ijk(xyz)
-            vecs = self.vec[ijk[0], ijk[1], ijk[2]] # fancy indexing -> copy!
-            # Assuming that seeds have been duplicated for both directions!
-            vecs[len(vecs)//2:, :] *= -1
-            return normalize(vecs)
-        elif hasattr(self, "model"):
-            raise NotImplementedError # TODO: Implement prior model
-
-
-class Terminator(MarginHandler):
-
-    def __init__(self, term_path, thresh):
-        if ".nii" in term_path:
-            scalar_img = nib.load(term_path)
-            self.scalar = scalar_img.get_data()
-            self.affi = np.linalg.inv(scalar_img.affine)
-        elif ".h5" in term_path:
-            raise NotImplementedError # TODO: Implement termination model
-        self.threshold = thresh
-
-    def __call__(self, xyz):
-        if hasattr(self, "scalar"):
-            ijk = self.xyz2ijk(xyz)
-            return np.where(
-                self.scalar[ijk[0], ijk[1], ijk[2]] < self.threshold)[0]
-        else:
-            raise NotImplementedError
-
-
-def run_inference(configs):
     """"""
+    gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
 
     print("Loading DWI...") ####################################################
 
@@ -231,6 +178,11 @@ def run_inference(configs):
             merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
             fibers[gidx] = [merged_fiber]
 
+
+    K.clear_session()
+    if gpu_queue is not None:
+        gpu_queue.put(gpu_idx)
+
     # Save Result
 
     fibers = [f[0] for f in fibers]
@@ -250,7 +202,7 @@ def run_inference(configs):
 
     os.makedirs(out_dir, exist_ok=True)
 
-    fiber_path = os.path.join(out_dir, "fibers.trk")
+    fiber_path = os.path.join(out_dir, timestamp + ".trk")
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
@@ -258,6 +210,34 @@ def run_inference(configs):
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
         yaml.dump(configs, file, default_flow_style=False)
+
+
+    if configs["score"]:
+
+        env = os.environ.copy()
+        env_name = str(env["CONDA_DEFAULT_ENV"])
+        env["CONDA_DEFAULT_ENV"] = "scoring"
+        env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
+        env["PATH"] = env["PATH"].replace(
+            os.path.join("envs", env_name), os.path.join("envs", "scoring")
+            )
+        env["_"] = env["_"].replace(
+            os.path.join("envs", env_name), os.path.join("envs", "scoring")
+            )
+
+        trimmed_path = fiber_path[:-4] + "_trimmed.trk"
+
+        cmd = [
+            "track_vis", fiber_path, "-nr", "-l", 30, 200, "-o", trimmed_path,
+            "&&",
+            "python", "scoring/scripts/score_tractogram.py", trimmed_path,
+            "--base-dir", "scoring/scoring_data",
+            "--out_dir", os.getcwd(),
+            "--save_full_vc", "--save_full_ic", "--save_full_nc", "--save_ib",
+            "--save_vb"
+        ]
+
+        Popen(cmd, env=env, shell=True)
 
     return tractogram
 
