@@ -1,22 +1,24 @@
-import os
 import yaml
 
 from functools import reduce
 import operator
 
 from collections import Mapping
-from itertools import chain, product
+from itertools import product
 from operator import add
 
 from copy import deepcopy
 
 _FLAG_FIRST = object()
 
-def flattenDict(d, join=add, lift=lambda x:x):
+
+def flatten_dict(d, join=add, lift=lambda x:x):
     results = []
+
     def visit(subdict, results, partialKey):
         for k,v in subdict.items():
-            newKey = lift(k) if partialKey==_FLAG_FIRST else join(partialKey,lift(k))
+            newKey = lift(k) if partialKey==_FLAG_FIRST \
+                else join(partialKey,lift(k))
             if isinstance(v,Mapping):
                 visit(v, results, newKey)
             else:
@@ -139,7 +141,7 @@ def set_by_path(root, items, value):
 def make_configs_from(base_config, more_args):
 
     changes = parse_more_args(more_args, multiple_values=True)
-    flat_changes = flattenDict(changes, lift=lambda x:[x,])
+    flat_changes = flatten_dict(changes, lift=lambda x:[x, ])
 
     configs=[]
     for i, change in enumerate(flat_changes):

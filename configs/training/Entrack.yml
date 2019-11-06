@@ -13,6 +13,7 @@ batch_size: 256
 shuffle: True
 
 train_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
+eval_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
 
 callbacks:
   RunningWindowLogger:
