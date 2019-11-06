@@ -30,7 +30,8 @@ from utils.inference import Prior, Terminator
 
 
 @set_env
-def run_inference(config=None, gpu_queue=None):
+def run_inference(configs=None, gpu_queue=None):
+
     """"""
     gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
 
@@ -38,7 +39,7 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Loading DWI...") ####################################################
 
-    dwi_img = nib.load(dwi_path)
+    dwi_img = nib.load(configs['dwi_path'])
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
@@ -54,24 +55,24 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Loading Models...") #################################################
 
-    config_path = os.path.join(os.path.dirname(model_path), "config.yml")
+    config_path = os.path.join(os.path.dirname(configs['model_path']), "config.yml")
 
     model_name = load(config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
-        model = load_model(model_path,
+        model = load_model(configs['model_path'],
                            custom_objects=MODELS[model_name].custom_objects,
                            compile=False)
     else:
-        model = load_model(model_path, compile=False)
+        model = load_model(configs['model_path'], compile=False)
 
-    terminator = Terminator(term_path, thresh)
+    terminator = Terminator(configs['term_path'], configs['thresh'])
 
-    prior = Prior(prior_path)
+    prior = Prior(configs['prior_path'])
 
     print("Initializing Fibers...") ############################################
 
-    seed_file = nib.streamlines.load(seed_path)
+    seed_file = nib.streamlines.load(configs['seed_path'])
     xyz = seed_file.tractogram.streamlines.data
     n_seeds = 2 * len(xyz)
     xyz = np.vstack([xyz, xyz])  # Duplicate seeds for both directions
@@ -92,7 +93,7 @@ def run_inference(config=None, gpu_queue=None):
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
     dnorm = np.zeros([n_seeds, 1])
     vout = np.zeros([n_seeds, 3])
-    for i in range(max_steps):
+    for i in range(configs['max_steps']):
         t0 = time()
 
         ijk = xyz2ijk(xyz[:,-1,:], snap=True)  # Get coords of latest segement for each fiber
@@ -121,14 +122,14 @@ def run_inference(config=None, gpu_queue=None):
             if isinstance(outputs, list):
                 outputs = outputs[0]
 
-            if predict_fn == "mean":
+            if configs['predict_fn'] == "mean":
                 v = outputs.mean_direction.numpy()
                 # v = normalize(v)
-            elif predict_fn == "sample":
+            elif configs['predict_fn'] == "sample":
                 v = outputs.sample().numpy()
             vout[c * chunk : (c + 1) * chunk] = v
 
-        rout = xyz[:, -1, :3] + step_size * vout
+        rout = xyz[:, -1, :3] + configs['step_size'] * vout
         rout = np.hstack([rout, np.ones((n_ongoing, 1))]).reshape(-1, 1, 4)
 
         xyz = np.concatenate([xyz, rout], axis=1)
@@ -155,7 +156,7 @@ def run_inference(config=None, gpu_queue=None):
 
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
             " {:6.0f} steps/sec".format(
-            (i+1), max_steps, n_seeds-n_ongoing, n_seeds,
+            (i+1), configs['max_steps'], n_seeds-n_ongoing, n_seeds,
             100*(1-n_ongoing/n_seeds), n_ongoing / (time() - t0)),
             end="\r"
         )
@@ -185,8 +186,9 @@ def run_inference(config=None, gpu_queue=None):
         affine_to_rasmm=np.eye(4)
     )
 
+    out_dir = configs['out_dir']
     if out_dir is None:
-        out_dir = os.path.dirname(dwi_path)
+        out_dir = os.path.dirname(configs['dwi_path'])
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
 
@@ -198,22 +200,10 @@ def run_inference(config=None, gpu_queue=None):
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
-    config=dict(
-        model_path=model_path,
-        dwi_path=dwi_path,
-        prior_path=prior_path,
-        seed_path=seed_path,
-        term_path=term_path,
-        thresh=thresh,
-        predict_fn=predict_fn,
-        step_size=step_size,
-        max_steps=max_steps
-        )
-
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
-        yaml.dump(config, file, default_flow_style=False)
+        yaml.dump(configs, file, default_flow_style=False)
 
     # !!!
     # Make sure to return gpu_idx to gpu_queue before scoring!
@@ -353,28 +343,16 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
                 other_end = fibers[gidx][0]
                 merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
                 fibers[gidx] = [merged_fiber]
-            already_terminated = np.concatenate([already_terminated, idx])
+            already_terminated = np.concatenate([already_terminated, [idx]])
 
     return fibers
 
 
-def run_rnn_inference(
-        model_path,
-        dwi_path,
-        prior_path,
-        seed_path,
-        term_path,
-        thresh,
-        predict_fn,
-        step_size,
-        max_steps,
-        batch_size,
-        out_dir
-):
+def run_rnn_inference(configs):
     """"""
     print("Loading DWI...")  ####################################################
-
-    dwi_img = nib.load(dwi_path)
+    batch_size = configs['batch_size']
+    dwi_img = nib.load(configs['dwi_path'])
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
@@ -382,29 +360,29 @@ def run_rnn_inference(
 
     print("Loading Models...")  #################################################
 
-    config_path = os.path.join(os.path.dirname(model_path), "config.yml")
+    config_path = os.path.join(os.path.dirname(configs['model_path']), "config.yml")
 
     with open(config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
 
     if hasattr(MODELS[model_name], "custom_objects"):
-        trained_model = load_model(model_path,
+        trained_model = load_model(configs['model_path'],
                            custom_objects=MODELS[model_name].custom_objects)
     else:
-        trained_model = load_model(model_path)
+        trained_model = load_model(configs['model_path'])
 
     model_config = {'batch_size': batch_size,
                     'input_shape':  trained_model.input_shape[1:]}
     prediction_model = RNNModel(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
-    terminator = Terminator(term_path, thresh)
+    terminator = Terminator(configs['term_path'], configs['thresh'])
 
-    prior = Prior(prior_path)
+    prior = Prior(configs['prior_path'])
 
     print("Initializing Fibers...")  ############################################
 
-    seed_file = nib.streamlines.load(seed_path)
+    seed_file = nib.streamlines.load(configs['seed_path'])
     xyz = seed_file.tractogram.streamlines.data
     n_seeds = len(xyz)
     fibers = [[] for _ in range(n_seeds)]
@@ -417,7 +395,8 @@ def run_rnn_inference(
         xyz_batch = np.hstack([xyz_batch, np.ones([n_seeds_batch, 1])])  # add affine dimension
         xyz_batch = xyz_batch.reshape(-1, 1, 4)  # (fiber, segment, coord)
 
-        if i == batch_size//2 * (n_seeds // (batch_size // 2)): # Make a last model for the remaining batch
+        # Make a last model for the remaining batch
+        if i == batch_size//2 * (n_seeds // (batch_size // 2)):
             last_batch_size = (n_seeds - i) * 2
             model_config['batch_size'] = last_batch_size
             prediction_model = RNNModel(model_config).keras
@@ -426,19 +405,20 @@ def run_rnn_inference(
         prediction_model.reset_states()
         print("Batch {0} with shape {1}".format(i // (batch_size // 2), xyz_batch.shape))
         batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
-            prediction_model, dwi, dwi_affi, max_steps, step_size)
+            prediction_model, dwi, dwi_affi, configs['max_steps'], configs['step_size'])
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
-    fibers = [f[0] for f in fibers] ## is this OK? 
+    fibers = [f[0] for f in fibers]
 
     tractogram = Tractogram(
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
 
+    out_dir = configs['out_dir']
     if out_dir is None:
-        out_dir = os.path.dirname(dwi_path)
+        out_dir = os.path.dirname(configs['dwi_path'])
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
 
@@ -450,22 +430,10 @@ def run_rnn_inference(
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
-    config = dict(
-        model_path=model_path,
-        dwi_path=dwi_path,
-        prior_path=prior_path,
-        seed_path=seed_path,
-        term_path=term_path,
-        thresh=thresh,
-        predict_fn=predict_fn,
-        step_size=step_size,
-        max_steps=max_steps
-    )
-
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
-        yaml.dump(config, file, default_flow_style=False)
+        yaml.dump(configs, file, default_flow_style=False)
 
     return tractogram
 
@@ -473,76 +441,18 @@ def run_rnn_inference(
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Use a trained model to "
-        "predict fibers on DWI data."
-        )
+        "predict fibers on DWI data.")
 
-    parser.add_argument("model_path", type=str,
-        help="Path to stored keras model.")
-
-    parser.add_argument("dwi_path", type=str,
-        help="Path to DWI data.")
-
-    parser.add_argument("prior_path", type=str,
-        help="Path to prior file with either .nii or .h5 extension."
-            "If .nii, assumes a WxLxHx3 volume containing the prior directions."
-            "If .h5, assumes a trained model, which takes only DWI as input.")
-
-    parser.add_argument("seed_path", type=str,
-        help="Path to seed file (.trk).")
-
-    parser.add_argument("term_path", type=str,
-        help="Path to terminator file (.nii).")
-
-    parser.add_argument("--thresh", type=float, default=0.1,
-        help="Stopping threshold, used together with term_path, if provided.")
-
-    parser.add_argument("--predict_fn", type=str, default="mean",
-        choices=["mean", "sample"],
-        help="Next-Step prediction mode, either along most-likely direction "
-        "(mean), or along a randomly sampled direction (sample).")
-
-    parser.add_argument("--step_size", type=float, default=0.25,
-        help="Length of each step.")
-
-    parser.add_argument("--max_steps", type=int, default=400,
-        help="Maximum number of iterations.")
-
-    parser.add_argument("--batch_size", type=int, default=512, help="Batch size of the model during predictions")
-
-    parser.add_argument("--out_dir", type=str, default=None,
-        help="Directory to save the predicted fibers. "
-        "By default, it is created next to dwi_path.")
+    parser.add_argument("config_path", type=str, nargs="?",
+                        help="Path to inference config.")
 
     args = parser.parse_args()
 
-    config_path = os.path.join(os.path.dirname(args.model_path), "config.yml")
+    configs = load(args.config_path)
 
-    if load(config_path, "model_name") == "RNN":
-        run_rnn_inference(
-            args.model_path,
-            args.dwi_path,
-            args.prior_path,
-            args.seed_path,
-            args.term_path,
-            args.thresh,
-            args.predict_fn,
-            args.step_size,
-            args.max_steps,
-            args.batch_size,
-            args.out_dir
-        )
+    if configs['model_name'] == "RNN":
+        run_rnn_inference(configs)
     else:
-        run_inference(
-            args.model_path,
-            args.dwi_path,
-            args.prior_path,
-            args.seed_path,
-            args.term_path,
-            args.thresh,
-            args.predict_fn,
-            args.step_size,
-            args.max_steps,
-            args.out_dir
-        )
+        run_inference(configs)
 
 
