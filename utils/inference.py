@@ -1,6 +1,6 @@
 import numpy as np
 import nibabel as nib
-
+from sklearn.preprocessing import normalize
 
 class MarginHandler(object):
 

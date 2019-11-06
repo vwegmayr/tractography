@@ -27,9 +27,10 @@ from models import RNN as RNNModel
 
 from utils.config import load
 from utils.inference import Prior, Terminator
+from utils.training import setup_env, maybe_get_a_gpu
 
 
-@set_env
+@setup_env
 def run_inference(configs=None, gpu_queue=None):
 
     """"""
@@ -177,6 +178,10 @@ def run_inference(configs=None, gpu_queue=None):
             merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
             fibers[gidx] = [merged_fiber]
 
+
+    K.clear_session()
+    gpu_queue.put(gpu_idx)
+
     # Save Result
 
     fibers = [f[0] for f in fibers]
@@ -205,11 +210,8 @@ def run_inference(configs=None, gpu_queue=None):
     with open(config_path, "w") as file:
         yaml.dump(configs, file, default_flow_style=False)
 
-    # !!!
-    # Make sure to return gpu_idx to gpu_queue before scoring!
-    # !!!
 
-    if config["score"]:
+    if configs["score"]:
 
         env = os.environ.copy()
         env_name = str(env["CONDA_DEFAULT_ENV"])
