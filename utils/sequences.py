@@ -53,14 +53,14 @@ class RNNSamples(Samples):
 
         # Cut whatever doesn't fit in a batch
         if self.batch_size > 1:
-            self.inputs = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size),...]
+            self.inputs = [batch_input[:-(batch_input.shape[0] % self.batch_size),...]
                                     if batch_input.shape[0] > self.batch_size else batch_input
-                                    for batch_input in self.samples["inputs"] ])
-            self.outgoing = np.array([batch_input[:-(batch_input.shape[0] % self.batch_size), ...]
+                                    for batch_input in self.samples["inputs"] ]
+            self.outgoing = [batch_input[:-(batch_input.shape[0] % self.batch_size), ...]
                                       if batch_input.shape[0] > self.batch_size else batch_input
-                                      for batch_input in self.samples["outgoing"]])
-        self.inputs = np.array([batch_input for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size])
-        self.outgoing = np.array([batch_input for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size])
+                                      for batch_input in self.samples["outgoing"]]
+        self.inputs = [batch_input for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size]
+        self.outgoing = [batch_input for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size]
 
         print("Reduced length of input from {0} to {1} to fit the batch size.".
               format(len(self.samples["inputs"]), len(self.inputs)))
@@ -73,23 +73,20 @@ class RNNSamples(Samples):
         return self.batch_indices[-1]
 
     def __getitem__(self, idx):
-        first_possible_input = self.inputs[(idx < self.batch_indices)][0]
-        first_possible_output = self.outgoing[(idx < self.batch_indices)][0]
-        previous_index = np.where((idx < self.batch_indices))[0][0] - 1
+        first_index = np.where((idx < self.batch_indices))[0][0]
+        first_possible_input = self.inputs[first_index]
+        first_possible_output = self.outgoing[first_index]
+        previous_index = first_index - 1
         if previous_index < 0:
             previous_index = 0
         else:
             previous_index = self.batch_indices[previous_index]
         current_batch_idx = idx - previous_index
-        row_idx = current_batch_idx // first_possible_input.shape[1]
+        row_idx = current_batch_idx // (first_possible_input.shape[1])
         col_idx = current_batch_idx % first_possible_input.shape[1]
 
-        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, np.newaxis, ...]
-        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1) * self.batch_size, col_idx, np.newaxis, ...]
-
-        reset_state = False
-        if col_idx == 0:
-            reset_state = True
+        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, np.newaxis, ...]
+        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, np.newaxis, ...]
 
         return (x_batch, y_batch)
 
@@ -97,8 +94,10 @@ class RNNSamples(Samples):
         """For sure there is a smarter way for this ... :)"""
         reset_batches = []
         for idx in range(self.__len__()):
-            first_possible_input = self.inputs[(idx < self.batch_indices)][0]
-            previous_index = np.where((idx < self.batch_indices))[0][0] - 1
+            first_index = np.where((idx < self.batch_indices))[0][0]
+            first_possible_input = self.inputs[first_index]
+            previous_index = first_index - 1
+
             if previous_index < 0:
                 previous_index = 0
             else:
@@ -107,6 +106,7 @@ class RNNSamples(Samples):
             col_idx = current_batch_idx % first_possible_input.shape[1]
             if col_idx == 0:
                 reset_batches.append(idx)
+
         return np.array(reset_batches)
 
 

@@ -8,5 +8,8 @@ models/
 !models/__init__.py
 scoring/scoring_data
 scoring/results
+.archive
+.running
+configs/*
 **/*.pyc
 **/*.yml

@@ -20,7 +20,7 @@ def train(config=None, gpu_queue=None):
 
     out_dir = os.path.join("models",
                            config["model_name"],
-                           config["model_type"],
+                           config.get("model_type", ""),
                            timestamp())
     os.makedirs(out_dir, exist_ok=True)
     configs.deep_update(config, {"out_dir": out_dir})
@@ -32,12 +32,16 @@ def train(config=None, gpu_queue=None):
     try:
         train_seq = model.get_sequence(config["train_path"],
             config["batch_size"])
-        eval_seq = model.get_sequence(config["eval_path"],
+        eval_seq = model.get_sequence(config.get("eval_path"),
             config["batch_size"], istraining=False)
         configs.deep_update(config, {"train_seq": train_seq,
                                      "eval_seq": eval_seq})
 
-        callbacks = parse_callbacks(config["callbacks"])
+        if "RNN" in config["model_name"]:
+            callback_config = {'callbacks': {'RNNResetCallBack': {'reset_batches': train_seq.reset_batches}}}
+            callbacks = parse_callbacks(callback_config["callbacks"])
+        else:
+            callbacks = parse_callbacks(config["callbacks"])
 
         optimizer=getattr(keras_optimizers, config["optimizer"])(
             **config["opt_params"]

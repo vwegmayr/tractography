@@ -345,6 +345,7 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
         terminal_indices = np.where(mask)[0][tmp_indices]
 
         for idx in terminal_indices:
+            assert idx not in already_terminated
             gidx = fiber_idx[idx]
             # Other end not yet added
             if not fibers[gidx]:
@@ -369,6 +370,8 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
         )
 
         if n_ongoing == 0:
+            assert len(set(already_terminated)) == n_seeds
+            print("normal termination")
             break
 
         gc.collect()
@@ -377,13 +380,15 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
 
     # Include unfinished fibers:
     for idx, gidx in enumerate(fiber_idx):
-        if not fibers[gidx]:
-            fibers[gidx].append(xyz[idx, :, :3])
-        else:
-            this_end = xyz[idx, :, :3]
-            other_end = fibers[gidx][0]
-            merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
-            fibers[gidx] = [merged_fiber]
+        if idx not in already_terminated:
+            if not fibers[gidx]:
+                fibers[gidx].append(xyz[idx, :, :3])
+            else:
+                this_end = xyz[idx, :, :3]
+                other_end = fibers[gidx][0]
+                merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
+                fibers[gidx] = [merged_fiber]
+            already_terminated = np.concatenate([already_terminated, idx])
 
     return fibers
 
@@ -423,8 +428,9 @@ def run_rnn_inference(
     else:
         trained_model = load_model(model_path)
 
-    input_shape = trained_model.input_shape[1:]
-    prediction_model = RNNModel(input_shape, batch_size=batch_size).keras
+    model_config = {'batch_size': batch_size,
+                    'input_shape':  trained_model.input_shape[1:]}
+    prediction_model = RNNModel(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
     terminator = Terminator(term_path, thresh)
@@ -448,8 +454,8 @@ def run_rnn_inference(
 
         if i == batch_size//2 * (n_seeds // (batch_size // 2)): # Make a last model for the remaining batch
             last_batch_size = (n_seeds - i) * 2
-            input_shape = prediction_model.input_shape[1:]
-            prediction_model = RNNModel(input_shape, batch_size=last_batch_size).keras
+            model_config['batch_size'] = last_batch_size
+            prediction_model = RNNModel(model_config).keras
             prediction_model.set_weights(trained_model.get_weights())
 
         prediction_model.reset_states()

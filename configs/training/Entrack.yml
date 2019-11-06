@@ -12,11 +12,7 @@ epochs: 10
 batch_size: 256
 shuffle: True
 
-train_path: subjects/992774/samples/2019-10-29-12:02:11/samples.npz
-# 0.1% subjects/992774/samples/2019-10-28-15:29:05/samples.npz
-#  20% subjects/992774/samples/2019-10-29-12:02:11/samples.npz
-eval_path: subjects/917255/samples/2019-10-28-15:28:50/samples.npz
-# 0.1% subjects/917255/samples/2019-10-28-15:28:50/samples.npz
+train_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
 
 callbacks:
   RunningWindowLogger:
