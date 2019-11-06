@@ -35,12 +35,14 @@ if __name__ == '__main__':
         if args.run_id == -1 or str(args.run_id).isnumeric():
             config_path = runs[args.run_id]
         else:
+            config_path = None
             for r in runs:
                 if args.run_id in r:
                     config_path = r
                     break
 
-        if os.path.exists(config_path):
+
+        if config_path is not None and os.path.exists(config_path):
             with open(config_path, "r") as config_file:
                 config = yaml.load(config_file, Loader=yaml.FullLoader)
         else:
