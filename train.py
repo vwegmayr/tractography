@@ -34,7 +34,9 @@ def train(config=None):
 
         if "RNN" in config["model_name"]:
             callback_config = {'callbacks': {'RNNResetCallBack': {'reset_batches': train_seq.reset_batches}}}
-        callbacks = parse_callbacks(callback_config["callbacks"])
+            callbacks = parse_callbacks(callback_config["callbacks"])
+        else:
+            callbacks = parse_callbacks(config["callbacks"])
 
         optimizer=getattr(keras_optimizers, config["optimizer"])(
             **config["opt_params"]
