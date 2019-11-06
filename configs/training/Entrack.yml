@@ -1,6 +1,8 @@
 model_name: Entrack
 model_type: conditional
 
+action: training
+
 temperature: 0.04
 
 optimizer: Adam
