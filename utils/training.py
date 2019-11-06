@@ -35,15 +35,14 @@ def setup_env(func):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = "2"  # ERROR
         logging.getLogger('tensorflow').setLevel(logging.ERROR)
 
-        try:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(getFirstAvailable(
-                order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
-        except Exception as e:
-            print(str(e))
-
         return func(*args, **kwargs)
 
     return setup_env_and_run
+
+
+def maybe_get_a_gpu():
+    return str(getFirstAvailable(
+            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
 
 
 def timestamp():
