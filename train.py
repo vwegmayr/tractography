@@ -14,9 +14,11 @@ import configs
 @setup_env
 def train(config=None, gpu_queue=None):
 
-    gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
+    try:
+        gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
+    except Exception as e:
+        print(str(e))
 
     out_dir = os.path.join("models",
                            config["model_name"],
