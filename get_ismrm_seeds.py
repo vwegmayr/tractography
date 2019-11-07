@@ -8,7 +8,7 @@ import subprocess as sp
 from hashlib import md5
 from nibabel.streamlines import ArraySequence, Tractogram
 from nibabel.streamlines.trk import TrkFile
-
+from dipy.io.utils import get_reference_info
 
 def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
 
@@ -76,10 +76,11 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
             p = np.ones(n_seeds) / n_seeds
 
         header = TrkFile.create_empty_header()
+
         header["voxel_to_rasmm"] = wm_file.affine
         header["dimensions"] = wm_file.header["dim"][1:4]
         header["voxel_sizes"] = wm_file.header["pixdim"][1:4]
-        header["voxel_order"] = b"RAS"
+        header["voxel_order"] = get_reference_info(wm_file)[3]
 
     if keep < 1:
         keep_n = int(keep * n_seeds)
