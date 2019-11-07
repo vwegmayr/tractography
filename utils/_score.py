@@ -6,15 +6,16 @@ import argparse
 def score_on_tm(fiber_path, blocking=True):
 
     env = os.environ.copy()
-    env_name = str(env["CONDA_DEFAULT_ENV"])
-    env["CONDA_DEFAULT_ENV"] = "scoring"
-    env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
-    env["PATH"] = env["PATH"].replace(
-        os.path.join("envs", env_name), os.path.join("envs", "scoring")
-        )
-    env["_"] = env["_"].replace(
-        os.path.join("envs", env_name), os.path.join("envs", "scoring")
-        )
+    if 'CONDA_PREFIX' in env:
+        env_name = str(env["CONDA_DEFAULT_ENV"])
+        env["CONDA_DEFAULT_ENV"] = "scoring"
+        env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
+        env["PATH"] = env["PATH"].replace(
+            os.path.join("envs", env_name), os.path.join("envs", "scoring")
+            )
+        env["_"] = env["_"].replace(
+            os.path.join("envs", env_name), os.path.join("envs", "scoring")
+            )
 
     cmd = []
 
