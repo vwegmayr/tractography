@@ -18,7 +18,7 @@ def score_on_tm(fiber_path, blocking=True):
 
     cmd = []
 
-    if "trimmed" not in fiber_path:
+    if "trimmed" not in fiber_path and "tm_all_merged" not in fiber_path:
         ismrm_version = fiber_path.split("/")[1].split("_")[1]
         trimmed_path = fiber_path[:-4] + "_{}_trimmed.trk".format(ismrm_version)
         cmd = [
