@@ -28,6 +28,7 @@ from models import RNN as RNNModel
 from utils.config import load
 from utils.prediction import Prior, Terminator
 from utils.training import setup_env, maybe_get_a_gpu
+from utils._score import score_on_tm
 
 import configs
 
@@ -211,36 +212,8 @@ def run_inference(config=None, gpu_queue=None):
     with open(config_path, "w") as file:
         yaml.dump(config, file, default_flow_style=False)
 
-
     if config["score"]:
-
-        env = os.environ.copy()
-        env_name = str(env["CONDA_DEFAULT_ENV"])
-        env["CONDA_DEFAULT_ENV"] = "scoring"
-        env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
-        env["PATH"] = env["PATH"].replace(
-            os.path.join("envs", env_name), os.path.join("envs", "scoring")
-            )
-        env["_"] = env["_"].replace(
-            os.path.join("envs", env_name), os.path.join("envs", "scoring")
-            )
-
-        ismrm_version = config["dwi_path"].split("/")[-2].split("_")[1]
-
-        trimmed_path = fiber_path[:-4] + "_{}_trimmed.trk".format(ismrm_version)
-
-        cmd = [
-            "track_vis", fiber_path, "-nr", "-l",
-            "30", "200", "-o", trimmed_path,
-            "&&",
-            "python", "scoring/scripts/score_tractogram.py", trimmed_path,
-            "--base_dir", "scoring/scoring_data",
-            "--out_dir", os.getcwd(),
-            "--save_full_vc", "--save_full_ic", "--save_full_nc", "--save_ib",
-            "--save_vb"
-        ]
-
-        subprocess.run(" ".join(cmd), env=env, shell=True)
+        score_on_tm(fiber_path)
 
     return tractogram
 
