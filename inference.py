@@ -26,7 +26,7 @@ from models import MODELS
 from models import RNN as RNNModel
 
 from utils.config import load
-from utils.prediction import Prior, Terminator
+from utils.prediction import Prior, Terminator, get_blocksize
 from utils.training import setup_env, maybe_get_a_gpu
 from utils._score import score_on_tm
 
@@ -92,8 +92,7 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Start Iteration...") ################################################
 
-    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
-    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
+    block_size = get_blocksize(model, dwi.shape[-1])
 
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
     dnorm = np.zeros([n_seeds, 1])
@@ -235,8 +234,7 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
         else:
             return ijk.T
 
-    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
-    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
+    block_size = get_blocksize(model, dwi.shape[-1])
 
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size ** 3])
     dnorm = np.zeros([n_seeds, 1])

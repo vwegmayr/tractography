@@ -49,3 +49,15 @@ class Terminator(MarginHandler):
                 self.scalar[ijk[0], ijk[1], ijk[2]] < self.threshold)[0]
         else:
             raise NotImplementedError
+
+
+def get_blocksize(model, n_dwi_coef):
+    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
+
+    nvox = float((input_shape - 3 - 1) / n_dwi_coef)
+
+    if not nvox.is_integer():
+        raise ValueError("Features are not of type "
+            "[--vin--, dnorm, --d/dnorm--]")
+
+    return int(np.cbrt(nvox))
