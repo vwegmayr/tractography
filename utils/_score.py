@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import argparse
 
@@ -38,10 +39,13 @@ def score_on_tm(fiber_path, blocking=True):
 
     cmd = " ".join(cmd)
 
-    if blocking:
-        return subprocess.run(cmd, env=env, shell=True)
+    if sys.version_info >= (3, 5):
+        if blocking:
+            return subprocess.run(cmd, env=env, shell=True)
+        else:
+            return subprocess.Popen(cmd, env=env, shell=True)
     else:
-        return subprocess.Popen(cmd, env=env, shell=True)
+        subprocess.call(cmd, shell=True)
 
 
 if __name__ == '__main__':
