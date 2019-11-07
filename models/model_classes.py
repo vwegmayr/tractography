@@ -4,7 +4,7 @@ import numpy as np
 
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import (Input, Reshape, Dropout,
-    BatchNormalization, Lambda, Dense, GRU)
+    BatchNormalization, Lambda, Dense, GRU, LSTM)
 
 from utils.config import deep_update
 from utils.training import Temperature
@@ -247,6 +247,44 @@ class RNN(Model):
             for hidden_size in hidden_size[1:-1]:
                 x = GRU(hidden_size, return_sequences=True, stateful=True)(x)
             x = GRU(hidden_size[-1], return_sequences=True, stateful=True)(x)
+        x = Dense(3, activation='linear', name='output1')(x)  # TODO: This output is not fed to model, make sure it's fine
+        return x
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss={'output1': 'mean_squared_error'})
+
+
+class RNNLSTM(Model):
+
+    model_name="RNNLSTM"
+
+    sample_class = "RNNSamples"
+
+    summaries = "RNNSummaries"
+
+    def __init__(self, config):
+
+        if 'input_shape' in config:
+            input_shape = config['input_shape']
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
+        batch_size = config["batch_size"]
+        inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
+        self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
+
+    @staticmethod
+    def model_fn(inputs):
+        hidden_size = [500, 500]  # Fixed
+
+        x = LSTM(hidden_size[0], return_sequences=True, stateful=True)(inputs)
+        if len(hidden_size) > 1:
+            for hidden_size in hidden_size[1:-1]:
+                x = LSTM(hidden_size, return_sequences=True, stateful=True)(x)
+            x = LSTM(hidden_size[-1], return_sequences=True, stateful=True)(x)
         x = Dense(3, activation='linear', name='output1')(x)  # TODO: This output is not fed to model, make sure it's fine
         return x
 

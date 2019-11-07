@@ -10,7 +10,7 @@ scoring/scoring_data
 scoring/results
 .archive
 .running
-configs/*
+configs/
 **/*.pyc
 **/*.yml
 scores/
