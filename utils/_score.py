@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import argparse
 
@@ -6,15 +7,16 @@ import argparse
 def score_on_tm(fiber_path, blocking=True):
 
     env = os.environ.copy()
-    env_name = str(env["CONDA_DEFAULT_ENV"])
-    env["CONDA_DEFAULT_ENV"] = "scoring"
-    env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
-    env["PATH"] = env["PATH"].replace(
-        os.path.join("envs", env_name), os.path.join("envs", "scoring")
-        )
-    env["_"] = env["_"].replace(
-        os.path.join("envs", env_name), os.path.join("envs", "scoring")
-        )
+    if 'CONDA_PREFIX' in env:
+        env_name = str(env["CONDA_DEFAULT_ENV"])
+        env["CONDA_DEFAULT_ENV"] = "scoring"
+        env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
+        env["PATH"] = env["PATH"].replace(
+            os.path.join("envs", env_name), os.path.join("envs", "scoring")
+            )
+        env["_"] = env["_"].replace(
+            os.path.join("envs", env_name), os.path.join("envs", "scoring")
+            )
 
     cmd = []
 
@@ -37,10 +39,13 @@ def score_on_tm(fiber_path, blocking=True):
 
     cmd = " ".join(cmd)
 
-    if blocking:
-        return subprocess.run(cmd, env=env, shell=True)
+    if sys.version_info >= (3, 5):
+        if blocking:
+            return subprocess.run(cmd, env=env, shell=True)
+        else:
+            return subprocess.Popen(cmd, env=env, shell=True)
     else:
-        return subprocess.Popen(cmd, env=env, shell=True)
+        subprocess.call(cmd, shell=True)
 
 
 if __name__ == '__main__':
