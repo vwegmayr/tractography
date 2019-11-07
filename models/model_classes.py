@@ -218,9 +218,9 @@ class FvMHybrid(Model):
         )
 
 
-class RNN(Model):
+class RNNGRU(Model):
 
-    model_name="RNN"
+    model_name="RNNGRU"
 
     sample_class = "RNNSamples"
 

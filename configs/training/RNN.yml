@@ -1,4 +1,4 @@
-model_name: RNNLSTM
+model_name: RNNGRU
 
 temperature:
 

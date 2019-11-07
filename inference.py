@@ -7,23 +7,19 @@ import yaml
 
 import nibabel as nib
 import numpy as np
-import tensorflow as tf
 
 from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 
 from nibabel.streamlines.trk import TrkFile
-from nibabel.streamlines.array_sequence import ArraySequence, concatenate
+from nibabel.streamlines.array_sequence import ArraySequence
 from nibabel.streamlines.tractogram import Tractogram
 
-from GPUtil import getFirstAvailable
-from sklearn.preprocessing import normalize
 from time import time
 
-import subprocess
-
 from models import MODELS
-from models import RNN as RNNModel
+from models import RNNGRU as GRUModel
+from models import RNNLSTM as LSTMModel
 
 from utils.config import load
 from utils.prediction import Prior, Terminator
@@ -351,9 +347,10 @@ def run_rnn_inference(config):
     else:
         trained_model = load_model(config['model_path'])
 
+    ModelClass = GRUModel if model_name == 'RNNGRU' else LSTMModel
     model_config = {'batch_size': batch_size,
                     'input_shape':  trained_model.input_shape[1:]}
-    prediction_model = RNNModel(model_config).keras
+    prediction_model = ModelClass(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
     terminator = Terminator(config['term_path'], config['thresh'])
@@ -379,7 +376,7 @@ def run_rnn_inference(config):
         if i == batch_size//2 * (n_seeds // (batch_size // 2)):
             last_batch_size = (n_seeds - i) * 2
             model_config['batch_size'] = last_batch_size
-            prediction_model = RNNModel(model_config).keras
+            prediction_model = ModelClass(model_config).keras
             prediction_model.set_weights(trained_model.get_weights())
 
         prediction_model.reset_states()
@@ -430,7 +427,7 @@ if __name__ == '__main__':
 
     config = configs.compile_from(args.config_path, args, more_args)
 
-    if config['model_name'] == "RNN":
+    if config['model_name'].startswith("RNN"):
         run_rnn_inference(config)
     else:
         run_inference(config)
