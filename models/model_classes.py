@@ -236,7 +236,8 @@ class RNNGRU(Model):
 
         batch_size = config["batch_size"]
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
-        self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
+        self.keras = tf.keras.Model(
+            inputs, self.model_fn(inputs), name=self.model_name)
 
     @staticmethod
     def model_fn(inputs):
@@ -247,7 +248,7 @@ class RNNGRU(Model):
             for hidden_size in hidden_size[1:-1]:
                 x = GRU(hidden_size, return_sequences=True, stateful=True)(x)
             x = GRU(hidden_size[-1], return_sequences=True, stateful=True)(x)
-        x = Dense(3, activation='linear', name='output1')(x)  # TODO: This output is not fed to model, make sure it's fine
+        x = Dense(3, activation='linear', name='output1')(x)
         return x
 
     def compile(self, optimizer):
@@ -274,7 +275,8 @@ class RNNLSTM(Model):
 
         batch_size = config["batch_size"]
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
-        self.keras = tf.keras.Model(inputs, self.model_fn(inputs), name=self.model_name)
+        self.keras = tf.keras.Model(
+            inputs, self.model_fn(inputs), name=self.model_name)
 
     @staticmethod
     def model_fn(inputs):
@@ -285,7 +287,7 @@ class RNNLSTM(Model):
             for hidden_size in hidden_size[1:-1]:
                 x = LSTM(hidden_size, return_sequences=True, stateful=True)(x)
             x = LSTM(hidden_size[-1], return_sequences=True, stateful=True)(x)
-        x = Dense(3, activation='linear', name='output1')(x)  # TODO: This output is not fed to model, make sure it's fine
+        x = Dense(3, activation='linear', name='output1')(x)
         return x
 
     def compile(self, optimizer):

@@ -2,7 +2,6 @@ import os
 import gc
 import argparse
 import datetime
-import logging
 import yaml
 
 import nibabel as nib
@@ -57,7 +56,8 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Loading Models...") #################################################
 
-    config_path = os.path.join(os.path.dirname(config['model_path']), "config.yml")
+    config_path = os.path.join(
+        os.path.dirname(config['model_path']), "config.yml")
 
     model_name = load(config_path, "model_name")
 
@@ -98,24 +98,28 @@ def run_inference(config=None, gpu_queue=None):
     for i in range(config['max_steps']):
         t0 = time()
 
-        ijk = xyz2ijk(xyz[:,-1,:], snap=True)  # Get coords of latest segement for each fiber
+        # Get coords of latest segement for each fiber
+        ijk = xyz2ijk(xyz[:,-1,:], snap=True)
 
         n_ongoing = len(ijk)
 
         for ii, idx in enumerate(ijk):
-            d[ii] = dwi[idx[0] - (block_size // 2) : idx[0] + (block_size // 2) + 1,
-                        idx[1] - (block_size // 2) : idx[1] + (block_size // 2) + 1,
-                        idx[2] - (block_size // 2) : idx[2] + (block_size // 2) + 1,
-                    :].flatten() # returns copy
+            d[ii] = dwi[
+                    idx[0]-(block_size // 2): idx[0]+(block_size // 2)+1,
+                    idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
+                    idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
+                    :].flatten()  # returns copy
             dnorm[ii] = np.linalg.norm(d[ii])
             d[ii] /= dnorm[ii]
 
         if i == 0:
-            inputs = np.hstack([prior(xyz[:,0,:]), d[:n_ongoing], dnorm[:n_ongoing]])
+            inputs = np.hstack([prior(xyz[:, 0, :]),
+                                d[:n_ongoing], dnorm[:n_ongoing]])
         else:
-            inputs = np.hstack([vout[:n_ongoing], d[:n_ongoing], dnorm[:n_ongoing]])
+            inputs = np.hstack([vout[:n_ongoing],
+                                d[:n_ongoing], dnorm[:n_ongoing]])
 
-        chunk = 2**15 # 32768
+        chunk = 2**15  # 32768
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
         for c in range(n_chunks):
 
@@ -157,11 +161,11 @@ def run_inference(config=None, gpu_queue=None):
         fiber_idx = np.delete(fiber_idx, terminal_indices)
 
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
-            " {:6.0f} steps/sec".format(
-            (i+1), config['max_steps'], n_seeds-n_ongoing, n_seeds,
-            100*(1-n_ongoing/n_seeds), n_ongoing / (time() - t0)),
-            end="\r"
-        )
+              " {:6.0f} steps/sec".format((i+1), config['max_steps'],
+                                          n_seeds-n_ongoing, n_seeds,
+                                          100*(1-n_ongoing/n_seeds),
+                                          n_ongoing / (time() - t0)),
+              end="\r")
 
         if n_ongoing == 0:
             break
@@ -215,9 +219,10 @@ def run_inference(config=None, gpu_queue=None):
     return tractogram
 
 
-def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, step_size):
+def infere_batch_seed(xyz, prior, terminator, model,
+                      dwi, dwi_affi, max_steps, step_size):
 
-    n_seeds = len(xyz) ## duplicated before, so multiple of 2
+    n_seeds = len(xyz)
     fiber_idx = np.hstack([
         np.arange(n_seeds//2, dtype="int32"),
         np.arange(n_seeds//2,  dtype="int32")
@@ -245,13 +250,15 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
     for i in range(max_steps):
         t0 = time()
 
-        ijk = xyz2ijk(xyz[:, -1, :], snap=True)  # Get coords of latest segement for each fiber
+        # Get coords of latest segement for each fiber
+        ijk = xyz2ijk(xyz[:, -1, :], snap=True)
 
         for ii, idx in enumerate(ijk):
             try:
-                d[ii] = dwi[idx[0] - (block_size // 2): idx[0] + (block_size // 2) + 1,
-                        idx[1] - (block_size // 2): idx[1] + (block_size // 2) + 1,
-                        idx[2] - (block_size // 2): idx[2] + (block_size // 2) + 1,
+                d[ii] = dwi[
+                        idx[0]-(block_size // 2): idx[0]+(block_size // 2)+1,
+                        idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
+                        idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
                         :].flatten()  # returns copy
                 dnorm[ii] = np.linalg.norm(d[ii]) + 0.0000000001
                 d[ii] /= dnorm[ii]
@@ -291,14 +298,15 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
                 fibers[gidx] = [merged_fiber]
 
             n_ongoing = n_ongoing - 1
-        already_terminated = np.concatenate([already_terminated, terminal_indices])
+        already_terminated = np.concatenate(
+            [already_terminated, terminal_indices])
 
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
-              " {:6.0f} steps/sec".format(
-            (i + 1), max_steps, n_seeds - n_ongoing, n_seeds,
-                                100 * (1 - n_ongoing / n_seeds), n_ongoing / (time() - t0)),
-            end="\r"
-        )
+              " {:6.0f} steps/sec".format((i + 1), max_steps,
+                                          n_seeds - n_ongoing, n_seeds,
+                                          100 * (1 - n_ongoing / n_seeds),
+                                          n_ongoing / (time() - t0)),
+              end="\r")
 
         if n_ongoing == 0:
             assert len(set(already_terminated)) == n_seeds
@@ -307,7 +315,8 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
 
         gc.collect()
 
-    print("{0} times fibers got out of bound, but keep calm as they were already finished".format(out_of_bound_fibers))
+    print("{0} times fibers got out of bound, but keep calm as they were "
+          "already finished".format(out_of_bound_fibers))
 
     # Include unfinished fibers:
     for idx, gidx in enumerate(fiber_idx):
@@ -317,7 +326,8 @@ def infere_batch_seed(xyz, prior, terminator, model, dwi, dwi_affi, max_steps, s
             else:
                 this_end = xyz[idx, :, :3]
                 other_end = fibers[gidx][0]
-                merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
+                merged_fiber = np.vstack([np.flip(this_end[1:], axis=0),
+                                          other_end])
                 fibers[gidx] = [merged_fiber]
             already_terminated = np.concatenate([already_terminated, [idx]])
 
@@ -336,7 +346,8 @@ def run_rnn_inference(config):
 
     print("Loading Models...")  #################################################
 
-    config_path = os.path.join(os.path.dirname(config['model_path']), "config.yml")
+    config_path = os.path.join(
+        os.path.dirname(config['model_path']), "config.yml")
 
     with open(config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
@@ -347,10 +358,10 @@ def run_rnn_inference(config):
     else:
         trained_model = load_model(config['model_path'])
 
-    ModelClass = GRUModel if model_name == 'RNNGRU' else LSTMModel
+    modelClass = GRUModel if model_name == 'RNNGRU' else LSTMModel
     model_config = {'batch_size': batch_size,
                     'input_shape':  trained_model.input_shape[1:]}
-    prediction_model = ModelClass(model_config).keras
+    prediction_model = modelClass(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
     terminator = Terminator(config['term_path'], config['thresh'])
@@ -368,21 +379,26 @@ def run_rnn_inference(config):
         xyz_batch = xyz[i:i + batch_size // 2]
 
         n_seeds_batch = 2 * len(xyz_batch)
-        xyz_batch = np.vstack([xyz_batch, xyz_batch])  # Duplicate seeds for both directions
-        xyz_batch = np.hstack([xyz_batch, np.ones([n_seeds_batch, 1])])  # add affine dimension
-        xyz_batch = xyz_batch.reshape(-1, 1, 4)  # (fiber, segment, coord)
+        # Duplicate seeds for both directions
+        xyz_batch = np.vstack([xyz_batch, xyz_batch])
+        # add affine dimension
+        xyz_batch = np.hstack([xyz_batch, np.ones([n_seeds_batch, 1])])
+        # (fiber, segment, coord)
+        xyz_batch = xyz_batch.reshape(-1, 1, 4)
 
         # Make a last model for the remaining batch
         if i == batch_size//2 * (n_seeds // (batch_size // 2)):
             last_batch_size = (n_seeds - i) * 2
             model_config['batch_size'] = last_batch_size
-            prediction_model = ModelClass(model_config).keras
+            prediction_model = modelClass(model_config).keras
             prediction_model.set_weights(trained_model.get_weights())
 
         prediction_model.reset_states()
-        print("Batch {0} with shape {1}".format(i // (batch_size // 2), xyz_batch.shape))
+        print("Batch {0} with shape {1}".format(
+            i // (batch_size // 2), xyz_batch.shape))
         batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
-            prediction_model, dwi, dwi_affi, config['max_steps'], config['step_size'])
+            prediction_model, dwi, dwi_affi, config['max_steps'],
+                                         config['step_size'])
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
@@ -417,8 +433,8 @@ def run_rnn_inference(config):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Use a trained model to "
-        "predict fibers on DWI data.")
+    parser = argparse.ArgumentParser(
+        description="Use a trained model to predict fibers on DWI data.")
 
     parser.add_argument("config_path", type=str, nargs="?",
                         help="Path to inference config.")

@@ -3,7 +3,6 @@ import argparse
 import shutil
 
 from tensorflow.keras import optimizers as keras_optimizers
-import numpy as np
 
 from models import MODELS
 from utils.training import (setup_env, timestamp, parse_callbacks, 
@@ -40,7 +39,10 @@ def train(config=None, gpu_queue=None):
                                      "eval_seq": eval_seq})
 
         if "RNN" in config["model_name"]:
-            callback_config = {'callbacks': {'RNNResetCallBack': {'reset_batches': train_seq.reset_batches}}}
+            callback_config = {'callbacks':
+                                   {'RNNResetCallBack':
+                                        {'reset_batches':
+                                             train_seq.reset_batches}}}
             callbacks = parse_callbacks(callback_config["callbacks"])
         else:
             callbacks = parse_callbacks(config["callbacks"])
