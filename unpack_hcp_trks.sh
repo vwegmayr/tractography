@@ -22,6 +22,6 @@ dir="subjects/${1}"
 if [ ! -d "${dir}/tracts" ]
 then
     unzip "hcp_zips/hcp_trks.zip" "${trk_dir}/${1}/*" -d "subjects"
-    cp -r "subjects/${trk_dir}/${1}/" "${dir}"
+    cp -r "subjects/${trk_dir}/${1}/tracts" "${dir}"
     rm -rf "subjects/${trk_dir}"
 fi
