@@ -20,7 +20,7 @@ from nibabel.streamlines.trk import TrkFile
 from nibabel.streamlines.array_sequence import ArraySequence
 
 
-def fiber_geometry(fiber, npts, smoothing):
+def fiber_geometry(fiber, npts, smoothing, higher_order):
     """Resample one fiber, and calculate geometry data"""
     
     tck, u = interpolate.splprep(fiber.T.reshape(3, -1), s=smoothing)
@@ -28,45 +28,55 @@ def fiber_geometry(fiber, npts, smoothing):
     if npts == "auto":
         flen = np.linalg.norm(fiber[1:] - fiber[:-1], axis=1).sum()
         npts = int(flen/2) # if units are in mm, pts are on average 2 mm apart
-
-    pts = np.linspace(0, 1, npts)
-    # Use pts=u to get samples exactly at the observed points
+        pts = np.linspace(0, 1, npts)
+    elif npts == "same":
+        npts = len(u)
+        pts=u
+    else:
+        pts = np.linspace(0, 1, npts)
 
     r = np.dstack(interpolate.splev(pts, tck))[0] # position
     r1 = np.dstack(interpolate.splev(pts, tck, der=1))[0]
     r2 = np.dstack(interpolate.splev(pts, tck, der=2))[0]
     r3 = np.dstack(interpolate.splev(pts, tck, der=3))[0]
-    
+
     r1xr2 = np.cross(r1, r2)
 
     t = r1
     t /= np.linalg.norm(t, axis=1, keepdims=True) # tangent vector
 
-    b = r1xr2
-    b /= np.linalg.norm(b, axis=1, keepdims=True) # binormal vector
+    if higher_order:
 
-    n = np.cross(b, t) # main normal vector
+        b = r1xr2
+        b /= np.linalg.norm(b, axis=1, keepdims=True) # binormal vector
 
-    k = np.linalg.norm(r1xr2, axis=1, keepdims=True)
-    k /= np.linalg.norm(r1, axis=1, keepdims=True)**3 # curvature
+        n = np.cross(b, t) # main normal vector
 
-    tau = np.sum(r1xr2 * r3, axis=1, keepdims=True)
-    tau /= np.linalg.norm(r1xr2, axis=1, keepdims=True)**2 # torsion
+        k = np.linalg.norm(r1xr2, axis=1, keepdims=True)
+        k /= np.linalg.norm(r1, axis=1, keepdims=True)**3 # curvature
+
+        tau = np.sum(r1xr2 * r3, axis=1, keepdims=True)
+        tau /= np.linalg.norm(r1xr2, axis=1, keepdims=True)**2 # torsion
     
-    return r, t, b, n, k, tau, npts
+        return r, t, b, n, k, tau, npts
+
+    else:
+
+        return r, t, npts
 
 
-def resample(trk_path, npts, smoothing, out_dir):
+def resample(trk_path, npts, smoothing, higher_order, out_dir):
     
     trk_file = nib.streamlines.load(trk_path)
     fibers = trk_file.tractogram.streamlines
     
     position = ArraySequence()
     tangent = ArraySequence()
-    binormal = ArraySequence()
-    mainnormal = ArraySequence()
-    curvature = ArraySequence()
-    torsion = ArraySequence() 
+    if higher_order:
+        binormal = ArraySequence()
+        mainnormal = ArraySequence()
+        curvature = ArraySequence()
+        torsion = ArraySequence() 
     rows = 0
     
     def max_dist_from_mean(path):
@@ -75,20 +85,35 @@ def resample(trk_path, npts, smoothing, out_dir):
     
     n_fails = 0
     for i, f in enumerate(fibers):
-        r, t, b, n, k, tau, cnt = fiber_geometry(f,
-            npts=npts,
-            smoothing=smoothing)
-        
+
+        if len(f) < 4: # Too short to compute higher derivatives
+            n_fails += 1
+            continue
+
+        if higher_order:
+            r, t, b, n, k, tau, cnt = fiber_geometry(
+                f,
+                npts=npts,
+                smoothing=smoothing,
+                higher_order=higher_order)
+        else:
+            r, t, cnt = fiber_geometry(
+                f,
+                npts=npts,
+                smoothing=smoothing,
+                higher_order=higher_order)
+
         if max_dist_from_mean(r) > 1.2 * max_dist_from_mean(f):
             n_fails += 1
             continue
         
         position.append(r, cache_build=True)
         tangent.append(t, cache_build=True)
-        binormal.append(b, cache_build=True)
-        mainnormal.append(n, cache_build=True)
-        curvature.append(k, cache_build=True)
-        torsion.append(tau, cache_build=True)
+        if higher_order:
+            binormal.append(b, cache_build=True)
+            mainnormal.append(n, cache_build=True)
+            curvature.append(k, cache_build=True)
+            torsion.append(tau, cache_build=True)
         rows += cnt
         
         print("Finished {:3.0f}%".format(100*(i+1)/len(fibers)), end="\r")
@@ -99,19 +124,26 @@ def resample(trk_path, npts, smoothing, out_dir):
         
     position.finalize_append()
     tangent.finalize_append()
-    binormal.finalize_append()
-    mainnormal.finalize_append()
-    curvature.finalize_append()
-    torsion.finalize_append()
+    if higher_order:
+        binormal.finalize_append()
+        mainnormal.finalize_append()
+        curvature.finalize_append()
+        torsion.finalize_append()
     
-    data_per_point = PerArraySequenceDict(
-        n_rows = rows,
-        t = tangent,
-        b = binormal,
-        n = mainnormal,
-        k = curvature,
-        tau = torsion
-    )
+    if higher_order:
+        data_per_point = PerArraySequenceDict(
+            n_rows = rows,
+            t = tangent,
+            b = binormal,
+            n = mainnormal,
+            k = curvature,
+            tau = torsion
+        )
+    else:
+        data_per_point = PerArraySequenceDict(
+            n_rows = rows,
+            t = tangent,
+        )
     
     tractogram = Tractogram(
         streamlines=position,
@@ -141,15 +173,24 @@ if __name__ == '__main__':
 
     parser.add_argument("trk_path", help="Path to .trk file", type=str)
 
-    parser.add_argument("--npts", default="auto",
+    parser.add_argument("--npts", default="auto", # or "same"
         help="Number of resampling points, i.e. fiber length in points."
         )
     parser.add_argument("--smoothing", default=5, type=float,
         help="Amount of spatial smoothing, larger values mean more smoothing."
+        )
+    parser.add_argument("--higher_order", action="store_true",
+        help="Include higher order derivatives."
         )
     parser.add_argument("--out_dir",
         help="Directory for saving the resampled .trk file.",
         type=str, default=None)
     args = parser.parse_args()
 
-    resample(args.trk_path, args.npts, args.smoothing, args.out_dir)
+    resample(
+        args.trk_path,
+        args.npts,
+        args.smoothing,
+        args.higher_order,
+        args.out_dir
+    )
