@@ -4,6 +4,8 @@ import argparse
 import nibabel as nib
 import numpy as np
 
+from time import time
+
 from tensorflow.keras.models import load_model
 
 from nibabel.streamlines.trk import TrkFile
@@ -32,18 +34,30 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
     dwi_affi = np.linalg.inv(dwi_aff)
     dwi = dwi_img.get_data()
 
-    dwi_xyz2ijk = lambda r: dwi_affi.dot([r[0], r[1], r[2], 1])[:3]
+    def xyz2ijk(coords, snap=False):
+
+        ijk = (coords.T).copy()
+
+        ijk = np.vstack([ijk, np.ones([1, ijk.shape[1]])])
+
+        dwi_affi.dot(ijk, out=ijk)
+
+        if snap:
+            return (np.round(ijk, out=ijk).astype(int, copy=False).T)[:,:4]
+        else:
+            return (ijk.T)[:,:4]
 
     # ==========================================================================
 
     trk_file = nib.streamlines.load(fiber_path)
-
     tractogram = trk_file.tractogram
+    streamlines = tractogram.streamlines
+    tangents = tractogram.data_per_point["t"]
 
-    tractogram = tractogram[:15]
 
     n_fibers = len(tractogram)
-    n_pts = np.sum([len(t.streamline) for t in tractogram])
+    fiber_lengths = np.array([len(t.streamline) for t in tractogram])
+    n_pts = fiber_lengths.sum()
 
     # ==========================================================================
 
@@ -58,62 +72,80 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
 
     block_size = get_blocksize(model, dwi.shape[-1])
 
-    kappa = ArraySequence()
-    log1p_kappa = ArraySequence()
-    log_prob = ArraySequence()
-    logp_ratio = ArraySequence()
+    d = np.zeros([n_fibers, dwi.shape[-1] * block_size**3])
+    dnorm = np.zeros([n_fibers, 1])
 
-    for i, tract in enumerate(tractogram):
+    kappa = [np.zeros([l, 1]) for l in fiber_lengths]
+    log1p_kappa = [np.zeros([l, 1]) for l in fiber_lengths]
+    log_prob = [np.zeros([l, 1]) for l in fiber_lengths]
+    log_prob_map = [np.zeros([l, 1]) for l in fiber_lengths]
 
-        k = np.zeros([len(tract.streamline), 1])
-        log1pk = np.zeros([len(tract.streamline), 1])
-        logp = np.zeros([len(tract.streamline), 1])
-        logpm = np.zeros([len(tract.streamline), 1])
+    max_step = fiber_lengths.max()
+    step=0
+    while step < max_step:
+        t0 = time()
 
-        for j, r in enumerate(tract.streamline):
+        left_idx  = np.where(step < fiber_lengths)[0]
+        n_left = len(left_idx)
 
-            if j == 0:
-                vin = -tract.data_for_points["t"][j+1]
-                vout = -tract.data_for_points["t"][j].reshape(1, -1)
-            else:
-                vin = tract.data_for_points["t"][j-1]
-                vout = tract.data_for_points["t"][j].reshape(1, -1)
+        # Get coords of latest segment for each ongoing fiber
+        xyz = np.array([streamlines[i][step] for i in left_idx])
+        ijk = xyz2ijk(xyz, snap=True)
 
-            idx = dwi_xyz2ijk(r)
-            d = interpolate(idx, dwi, block_size)
-            dnorm = np.linalg.norm(d)
-            d /= dnorm
+        for ii, idx in enumerate(ijk):
+            d[ii] = dwi[
+                    idx[0]-(block_size // 2): idx[0]+(block_size // 2)+1,
+                    idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
+                    idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
+                    :].flatten()  # returns copy
+            dnorm[ii] = np.linalg.norm(d[ii])
+            d[ii] /= dnorm[ii]
 
-            inputs = np.hstack([vin, d, dnorm]).reshape(1, -1)
+        if step == 0:
+            vin = - np.array([tangents[i][step+1] for i in left_idx])
+            vout = - np.array([tangents[i][step] for i in left_idx])
+        else:
+            vin = np.array([tangents[i][step-1] for i in left_idx])
+            vout = np.array([tangents[i][step] for i in left_idx])
 
-            fvm, k_pred = model(inputs)
+        inputs = np.hstack([vin, d[:n_left], dnorm[:n_left]])
 
-            k[j, 0] = k_pred[0]
-            log1pk[j, 0] = np.log1p(k_pred[0])
-            logp[j, 0] = fvm.log_prob(vout)[0]
-            logpm[j, 0] = fvm._log_normalization()[0] + k_pred[0]
+        chunk = 2**15  # 32768
+        n_chunks = np.ceil(n_left / chunk).astype(int)
+        for c in range(n_chunks):
 
-        kappa.append(k, cache_build=True)
-        log1p_kappa.append(log1pk, cache_build=True)
-        log_prob.append(logp, cache_build=True)
-        logp_ratio.append(
-            np.ones_like(logp) * logp.sum() / logpm.sum(),
-            cache_build=True
-        )
+            fvm_pred, kappa_pred = model(inputs[c * chunk : (c + 1) * chunk])
 
-        print("{}".format(i), end="\r")
+            log1p_kappa_pred = np.log1p(kappa_pred)
 
-    kappa.finalize_append()
-    log1p_kappa.finalize_append()
-    log_prob.finalize_append()
-    logp_ratio.finalize_append()
+            log_prob_pred = fvm_pred.log_prob(vout)
+
+            log_prob_map_pred = fvm_pred._log_normalization() + kappa_pred
+
+            for ii, i in enumerate(left_idx[c * chunk : (c + 1) * chunk]):
+
+                kappa[i][step] = kappa_pred[ii]
+                log1p_kappa[i][step] = log1p_kappa_pred[ii]
+                log_prob[i][step] = log_prob_pred[ii]
+                log_prob_map[i][step] = log_prob_map_pred[ii]
+
+        print("Step {:3d}/{:3d} @ {:6.0f} steps/sec".format(
+            step, max_step, n_left / (time() - t0)), end="\r")
+
+        step += 1
+
+    log_prob_ratio = [
+        np.ones_like(log_prob[i]) * (log_prob[i].sum() / log_prob_map[i].sum())
+        for i in range(n_fibers)
+    ]
 
     data_per_point = PerArraySequenceDict(
         n_rows=n_pts,
         kappa=kappa,
         log1p_kappa=log1p_kappa,
-        logp=log_prob,
-        logp_ratio=logp_ratio
+        log_prob=log_prob,
+        log_prob_map=log_prob_map,
+        log_prob_ratio=log_prob_ratio
     )
     tractogram = Tractogram(
         streamlines=tractogram.streamlines,
