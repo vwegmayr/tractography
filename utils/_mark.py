@@ -52,8 +52,11 @@ def mark(config, gpu_queue=None):
     trk_file = nib.streamlines.load(config["fiber_path"])
     tractogram = trk_file.tractogram
     streamlines = tractogram.streamlines
-    tangents = tractogram.data_per_point["t"]
 
+    if "t" in tractogram.data_per_point:
+        tangents = tractogram.data_per_point["t"]
+    else:
+        raise ValueError("Fibers need to be resampled before marking!")
 
     n_fibers = len(tractogram)
     fiber_lengths = np.array([len(t.streamline) for t in tractogram])
@@ -99,7 +102,7 @@ def mark(config, gpu_queue=None):
                     idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
                     :].flatten()  # returns copy
             dnorm[ii] = np.linalg.norm(d[ii])
-            d[ii] /= dnorm[ii]
+            d[ii] /= (dnorm[ii] + 10**-2)
 
         if step == 0:
             vin = - np.array([tangents[i][step+1] for i in left_idx])
@@ -118,7 +121,7 @@ def mark(config, gpu_queue=None):
 
             log1p_kappa_pred = np.log1p(kappa_pred)
 
-            log_prob_pred = fvm_pred.log_prob(vout)
+            log_prob_pred = fvm_pred.log_prob(vout[c * chunk : (c + 1) * chunk])
 
             log_prob_map_pred = fvm_pred._log_normalization() + kappa_pred
 
