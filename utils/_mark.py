@@ -23,12 +23,12 @@ from generate_samples import interpolate
 import configs
 
 @setup_env
-def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
+def mark(config, gpu_queue=None):
 
     gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
 
-    dwi_img = nib.load(dwi_path)
+    dwi_img = nib.load(config["dwi_path"])
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
     dwi_affi = np.linalg.inv(dwi_aff)
@@ -49,7 +49,7 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
 
     # ==========================================================================
 
-    trk_file = nib.streamlines.load(fiber_path)
+    trk_file = nib.streamlines.load(config["fiber_path"])
     tractogram = trk_file.tractogram
     streamlines = tractogram.streamlines
     tangents = tractogram.data_per_point["t"]
@@ -61,14 +61,14 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
 
     # ==========================================================================
 
-    model_name = model_path.split("/")[1]
+    model_name = config["model_path"].split("/")[1]
 
     if hasattr(MODELS[model_name], "custom_objects"):
-        model = load_model(model_path,
+        model = load_model(config["model_path"],
                            custom_objects=MODELS[model_name].custom_objects,
                            compile=False)
     else:
-        model = load_model(model_path, compile=False)
+        model = load_model(config["model_path"], compile=False)
 
     block_size = get_blocksize(model, dwi.shape[-1])
 
@@ -129,13 +129,21 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
                 log_prob[i][step] = log_prob_pred[ii]
                 log_prob_map[i][step] = log_prob_map_pred[ii]
 
-        print("Step {:3d}/{:3d} @ {:6.0f} steps/sec".format(
+        print("Step {:3d}/{:3d} @ {:4.0f} steps/sec".format(
             step, max_step, n_left / (time() - t0)), end="\r")
 
         step += 1
 
+    if gpu_queue is not None:
+        gpu_queue.put(gpu_idx)
+
     log_prob_ratio = [
         np.ones_like(log_prob[i]) * (log_prob[i].sum() / log_prob_map[i].sum())
+        for i in range(n_fibers)
+    ]
+
+    mean_log_prob_ratio = [
+        np.ones_like(log_prob[i]) * (log_prob[i] - log_prob_map[i]).mean()
         for i in range(n_fibers)
     ]
 
@@ -145,7 +153,8 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
         log1p_kappa=log1p_kappa,
         log_prob=log_prob,
         log_prob_map=log_prob_map,
-        log_prob_ratio=log_prob_ratio
+        log_prob_ratio=log_prob_ratio,
+        mean_log_prob_ratio=mean_log_prob_ratio
     )
     tractogram = Tractogram(
         streamlines=tractogram.streamlines,
@@ -153,31 +162,25 @@ def mark(model_path, fiber_path, dwi_path, gpu_queue=None):
         affine_to_rasmm=np.eye(4)
     )
     out_dir = os.path.join(
-        os.path.dirname(dwi_path), "marked_fibers", timestamp()
+        os.path.dirname(config["dwi_path"]), "marked_fibers", timestamp()
     )
     os.makedirs(out_dir, exist_ok=True)
 
     marked_path = os.path.join(out_dir, "marked.trk")
     TrkFile(tractogram, trk_file.header).save(marked_path)
 
-    config = dict(
-        out_dir=out_dir,
-        model_path=model_path,
-        fiber_path=fiber_path,
-        dwi_path=dwi_path
-    )
+    config["out_dir"] = out_dir
+
     configs.save(config)
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Mark fiber uncertainty.")
+    parser = argparse.ArgumentParser(description="Mark fiber statistics.")
 
-    parser.add_argument("model_path", type=str)
-
-    parser.add_argument("fiber_path", type=str)
-
-    parser.add_argument("dwi_path", type=str)
+    parser.add_argument("config_path", type=str)
 
     args = parser.parse_args()
 
-    mark(args.model_path, args.fiber_path, args.dwi_path)
+    config = load(args.config_path)
+
+    mark(config)
