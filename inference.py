@@ -109,7 +109,7 @@ def run_inference(config=None, gpu_queue=None):
                     idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
                     :].flatten()  # returns copy
             dnorm[ii] = np.linalg.norm(d[ii])
-            d[ii] /= dnorm[ii]
+            d[ii] /= (dnorm[ii] + 10**-2)
 
         if i == 0:
             inputs = np.hstack([prior(xyz[:, 0, :]),
@@ -258,7 +258,7 @@ def infere_batch_seed(xyz, prior, terminator, model,
                         idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
                         idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
                         :].flatten()  # returns copy
-                dnorm[ii] = np.linalg.norm(d[ii]) + 0.0000000001
+                dnorm[ii] = np.linalg.norm(d[ii]) + 0.01
                 d[ii] /= dnorm[ii]
             except:
                 assert ii in already_terminated
