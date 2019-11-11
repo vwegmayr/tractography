@@ -35,8 +35,8 @@ class Samples(Sequence):
 class FvMSamples(Samples):
 
     def __init__(self, *args, **kwargs):
-        print("Loading {} samples...".format("train" if self.istraining else "eval"))
         super(FvMSamples, self).__init__(*args, **kwargs)
+        print("Loading {} samples...".format("train" if self.istraining else "eval"))
         self.inputs = self.samples["inputs"]
         self.outgoing = self.samples["outgoing"]
 
@@ -58,8 +58,8 @@ class EntrackSamples(FvMSamples):
 class RNNSamples(Samples):
 
     def __init__(self, *args, **kwargs):
-        print("RNNSamples: Loading {} samples...".format("train" if self.istraining else "eval"))
         super(RNNSamples, self).__init__(*args, **kwargs)
+        print("RNNSamples: Loading {} samples...".format("train" if self.istraining else "eval"))
 
         # Cut whatever doesn't fit in a batch
         if self.batch_size > 1:
