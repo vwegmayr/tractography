@@ -20,7 +20,7 @@ from nibabel.streamlines.trk import TrkFile
 from nibabel.streamlines.array_sequence import ArraySequence
 
 
-def fiber_geometry(fiber, npts, smoothing, higher_order):
+def fiber_geometry(fiber, npts, smoothing):
     """Resample one fiber, and calculate geometry data"""
     
     tck, u = interpolate.splprep(fiber.T.reshape(3, -1), s=smoothing)
@@ -31,52 +31,46 @@ def fiber_geometry(fiber, npts, smoothing, higher_order):
         pts = np.linspace(0, 1, npts)
     elif npts == "same":
         npts = len(u)
-        pts=u
+        pts= u * 1.0
     else:
         pts = np.linspace(0, 1, npts)
 
     r = np.dstack(interpolate.splev(pts, tck))[0] # position
     r1 = np.dstack(interpolate.splev(pts, tck, der=1))[0]
-    r2 = np.dstack(interpolate.splev(pts, tck, der=2))[0]
-    r3 = np.dstack(interpolate.splev(pts, tck, der=3))[0]
 
+    t = r1 / np.linalg.norm(r1, axis=1, keepdims=True) # tangent vector
+
+    r2 = np.dstack(interpolate.splev(pts, tck, der=2))[0]
+    #r3 = np.dstack(interpolate.splev(pts, tck, der=3))[0]
+    
     r1xr2 = np.cross(r1, r2)
 
-    t = r1
-    t /= np.linalg.norm(t, axis=1, keepdims=True) # tangent vector
+    # b = r1xr2 / np.linalg.norm(r1xr2, axis=1, keepdims=True) # binormal vector
 
-    if higher_order:
+    # n = np.cross(b, t) # main normal vector
 
-        b = r1xr2
-        b /= np.linalg.norm(b, axis=1, keepdims=True) # binormal vector
+    k = np.linalg.norm(r1xr2, axis=1, keepdims=True)
+    k /= np.linalg.norm(r1, axis=1, keepdims=True)**3 # curvature
 
-        n = np.cross(b, t) # main normal vector
+    # tau = np.sum(r1xr2 * r3, axis=1, keepdims=True)
+    # tau /= np.linalg.norm(r1xr2, axis=1, keepdims=True)**2 # torsion
 
-        k = np.linalg.norm(r1xr2, axis=1, keepdims=True)
-        k /= np.linalg.norm(r1, axis=1, keepdims=True)**3 # curvature
-
-        tau = np.sum(r1xr2 * r3, axis=1, keepdims=True)
-        tau /= np.linalg.norm(r1xr2, axis=1, keepdims=True)**2 # torsion
-    
-        return r, t, b, n, k, tau, npts
-
-    else:
-
-        return r, t, npts
+    return r, t, k, npts
 
 
-def resample(trk_path, npts, smoothing, higher_order, out_dir):
+
+def resample(trk_path, npts, smoothing, include_curvature, out_dir):
     
     trk_file = nib.streamlines.load(trk_path)
     fibers = trk_file.tractogram.streamlines
     
     position = ArraySequence()
     tangent = ArraySequence()
-    if higher_order:
-        binormal = ArraySequence()
-        mainnormal = ArraySequence()
+    if include_curvature:
         curvature = ArraySequence()
-        torsion = ArraySequence() 
+        # binormal = ArraySequence()
+        # mainnormal = ArraySequence()
+        # torsion = ArraySequence() 
     rows = 0
     
     def max_dist_from_mean(path):
@@ -90,30 +84,19 @@ def resample(trk_path, npts, smoothing, higher_order, out_dir):
             n_fails += 1
             continue
 
-        if higher_order:
-            r, t, b, n, k, tau, cnt = fiber_geometry(
-                f,
-                npts=npts,
-                smoothing=smoothing,
-                higher_order=higher_order)
-        else:
-            r, t, cnt = fiber_geometry(
-                f,
-                npts=npts,
-                smoothing=smoothing,
-                higher_order=higher_order)
-
+        r, t, k, cnt = fiber_geometry(f, npts=npts, smoothing=smoothing)
+ 
         if max_dist_from_mean(r) > 1.2 * max_dist_from_mean(f):
             n_fails += 1
             continue
         
         position.append(r, cache_build=True)
         tangent.append(t, cache_build=True)
-        if higher_order:
-            binormal.append(b, cache_build=True)
-            mainnormal.append(n, cache_build=True)
+        if include_curvature:
             curvature.append(k, cache_build=True)
-            torsion.append(tau, cache_build=True)
+            # binormal.append(b, cache_build=True)
+            # mainnormal.append(n, cache_build=True)
+            # torsion.append(tau, cache_build=True)
         rows += cnt
         
         print("Finished {:3.0f}%".format(100*(i+1)/len(fibers)), end="\r")
@@ -124,25 +107,29 @@ def resample(trk_path, npts, smoothing, higher_order, out_dir):
         
     position.finalize_append()
     tangent.finalize_append()
-    if higher_order:
-        binormal.finalize_append()
-        mainnormal.finalize_append()
+    if include_curvature:
         curvature.finalize_append()
-        torsion.finalize_append()
+        # binormal.finalize_append()
+        # mainnormal.finalize_append()
+        # torsion.finalize_append()
     
-    if higher_order:
+    other_data={}
+    for key in list(trk_file.tractogram.data_per_point.keys()):
+        if key not in ["t", "k"]:
+            other_data[key] = trk_file.tractogram.data_per_point[key]
+
+    if include_curvature:
         data_per_point = PerArraySequenceDict(
             n_rows = rows,
             t = tangent,
-            b = binormal,
-            n = mainnormal,
             k = curvature,
-            tau = torsion
+            **other_data
         )
     else:
         data_per_point = PerArraySequenceDict(
             n_rows = rows,
             t = tangent,
+            **other_data
         )
     
     tractogram = Tractogram(
@@ -179,8 +166,8 @@ if __name__ == '__main__':
     parser.add_argument("--smoothing", default=5, type=float,
         help="Amount of spatial smoothing, larger values mean more smoothing."
         )
-    parser.add_argument("--higher_order", action="store_true",
-        help="Include higher order derivatives."
+    parser.add_argument("--include_curvature", action="store_true",
+        help="Include curvature values."
         )
     parser.add_argument("--out_dir",
         help="Directory for saving the resampled .trk file.",
@@ -191,6 +178,6 @@ if __name__ == '__main__':
         args.trk_path,
         args.npts,
         args.smoothing,
-        args.higher_order,
+        args.include_curvature,
         args.out_dir
     )
