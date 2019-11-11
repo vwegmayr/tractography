@@ -39,14 +39,12 @@ def train(config=None, gpu_queue=None):
                                      "eval_seq": eval_seq})
 
         if "RNN" in config["model_name"]:
-            callback_config = {'callbacks':
-                                   {'RNNResetCallBack':
-                                        {'reset_batches':
-                                             train_seq.reset_batches}}}
-            callbacks = parse_callbacks(callback_config["callbacks"])
-        else:
-            callbacks = parse_callbacks(config["callbacks"])
+            checkpoints = out_dir + '/inter_model_{epoch:02d}-{val_loss:.2f}.h5'
+            configs.deep_update(config,
+                                {"reset_batches": train_seq.reset_batches})
+            configs.deep_update(config, {"filepath": checkpoints})
 
+        callbacks = parse_callbacks(config["callbacks"])
         optimizer=getattr(keras_optimizers, config["optimizer"])(
             **config["opt_params"]
         )

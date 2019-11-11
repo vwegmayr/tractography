@@ -12,8 +12,12 @@ batch_size: 50
 shuffle: False
 
 train_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
+eval_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
 
 callbacks:
   RNNResetCallBack:
+    reset_batches:
+  ModelCheckpoint:
+    filepath:
 
 out_dir: None
