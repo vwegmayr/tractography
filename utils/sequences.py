@@ -12,8 +12,18 @@ class Samples(Sequence):
         """"""
         self.batch_size = batch_size
         self.istraining = istraining
-        self.samples = np.load(sample_path, allow_pickle=True)  # lazy loading
-        self.n_samples = min(max_n_samples, self.samples["n_samples"])
+        if isinstance(sample_path, list):
+            self.sample_files = [np.load(p, allow_pickle=True)
+                for p in sample_path]
+            self.n_samples = np.sum([s["n_samples"] for s in self.sample_files])
+
+            self.samples = {}
+            for key in self.sample_files.files:
+                self.samples[key] = np.vstack(
+                    [self.f[key] for f in self.sample_files])
+        else:
+            self.samples = np.load(sample_path, allow_pickle=True)  # lazy loading
+            self.n_samples = self.samples["n_samples"]
 
     def __len__(self):
         if self.istraining:
@@ -25,8 +35,8 @@ class Samples(Sequence):
 class FvMSamples(Samples):
 
     def __init__(self, *args, **kwargs):
-        super(FvMSamples, self).__init__(*args, **kwargs)
         print("Loading {} samples...".format("train" if self.istraining else "eval"))
+        super(FvMSamples, self).__init__(*args, **kwargs)
         self.inputs = self.samples["inputs"]
         self.outgoing = self.samples["outgoing"]
 
@@ -48,8 +58,8 @@ class EntrackSamples(FvMSamples):
 class RNNSamples(Samples):
 
     def __init__(self, *args, **kwargs):
-        super(RNNSamples, self).__init__(*args, **kwargs)
         print("RNNSamples: Loading {} samples...".format("train" if self.istraining else "eval"))
+        super(RNNSamples, self).__init__(*args, **kwargs)
 
         # Cut whatever doesn't fit in a batch
         if self.batch_size > 1:
