@@ -52,10 +52,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Dispatch several runs.")
 
-    parser.add_argument("action", type=str, choices=ACTIONS,
-        default="training")
-
     parser.add_argument("base_config_path", type=str)
+
+    parser.add_argument("--action", type=str, choices=ACTIONS,
+        default="training")
 
     args, more_args = parser.parse_known_args()
 
@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
     procs = []
 
-    if args.action in ["train", "inference"]:
+    if args.action in ["training", "inference"]:
 
         if args.action == "inference" and "*" in config["model_path"]:
             assert "--model_path" not in more_args
