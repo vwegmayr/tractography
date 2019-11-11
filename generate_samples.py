@@ -62,7 +62,7 @@ def generate_conditional_samples(dwi,
             idx = dwi_xyz2ijk(pt)
             d = interpolate(idx, dwi, block_size)
             dnorm = np.linalg.norm(d)
-            d /= dnorm
+            d /= (dnorm + 10**-2)
             #-------------------------------------------------------------------
             if i == 0:
                 vout = - tract.data_for_points["t"][i]
@@ -112,7 +112,7 @@ def generate_prior_samples(dwi,
             idx = dwi_xyz2ijk(pt)
             d = interpolate(idx, dwi, block_size)
             dnorm = np.linalg.norm(d)
-            d /= dnorm
+            d /= (dnorm + 10**-2)
             #-------------------------------------------------------------------
             vout = tract.data_for_points["t"][i]
             if i == 1:
@@ -183,7 +183,7 @@ def generate_rnn_samples(dwi, tracts, dwi_xyz2ijk, block_size, n_samples):
             idx = dwi_xyz2ijk(pt)
             d = interpolate(idx, dwi, block_size)
             dnorm = np.linalg.norm(d)
-            d /= dnorm
+            d /= (dnorm + 10**-2)
             #-------------------------------------------------------------------
 
             if i == 0:

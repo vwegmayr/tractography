@@ -77,6 +77,8 @@ if __name__ == '__main__':
                 with open(r, "r") as config_file:
                     configs.append(yaml.load(config_file,
                         Loader=yaml.FullLoader))
+            else:
+                runs.remove(r)
 
         time_stamps = {"timestamp": [r.split("/")[-2] for r in runs]}
 

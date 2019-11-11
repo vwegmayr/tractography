@@ -21,7 +21,7 @@ from models import RNNGRU as GRUModel
 from models import RNNLSTM as LSTMModel
 
 from utils.config import load
-from utils.prediction import Prior, Terminator
+from utils.prediction import Prior, Terminator, get_blocksize
 from utils.training import setup_env, maybe_get_a_gpu
 from utils._score import score_on_tm
 
@@ -89,8 +89,7 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Start Iteration...") ################################################
 
-    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
-    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
+    block_size = get_blocksize(model, dwi.shape[-1])
 
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
     dnorm = np.zeros([n_seeds, 1])
@@ -110,7 +109,7 @@ def run_inference(config=None, gpu_queue=None):
                     idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
                     :].flatten()  # returns copy
             dnorm[ii] = np.linalg.norm(d[ii])
-            d[ii] /= dnorm[ii]
+            d[ii] /= (dnorm[ii] + 10**-2)
 
         if i == 0:
             inputs = np.hstack([prior(xyz[:, 0, :]),
@@ -172,16 +171,12 @@ def run_inference(config=None, gpu_queue=None):
 
         gc.collect()
 
-    # Include unfinished fibers:
+    # Exclude unfinished fibers (finished = both ends finished)
 
-    for idx, gidx in enumerate(fiber_idx):
-        if not fibers[gidx]:
-            fibers[gidx].append(xyz[idx, :, :3])
-        else:
-            this_end = xyz[idx, :, :3]
-            other_end = fibers[gidx][0]
-            merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
-            fibers[gidx] = [merged_fiber]
+    for gidx in fiber_idx:
+        fibers.pop(gidx)
+
+    # Return GPU
 
     K.clear_session()
     if gpu_queue is not None:
@@ -237,8 +232,7 @@ def infere_batch_seed(xyz, prior, terminator, model,
         else:
             return ijk.T
 
-    input_shape = model.layers[0].get_output_at(0).get_shape().as_list()[-1]
-    block_size = int(np.cbrt(input_shape / dwi.shape[-1]))
+    block_size = get_blocksize(model, dwi.shape[-1])
 
     d = np.zeros([n_seeds, dwi.shape[-1] * block_size ** 3])
     dnorm = np.zeros([n_seeds, 1])
@@ -260,7 +254,7 @@ def infere_batch_seed(xyz, prior, terminator, model,
                         idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
                         idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
                         :].flatten()  # returns copy
-                dnorm[ii] = np.linalg.norm(d[ii]) + 0.0000000001
+                dnorm[ii] = np.linalg.norm(d[ii]) + 0.01
                 d[ii] /= dnorm[ii]
             except:
                 assert ii in already_terminated
