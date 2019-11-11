@@ -94,7 +94,7 @@ class Model(object):
     @staticmethod
     def check(config):
         pass
-        
+
 
 class FvM(Model):
     """docstring for FvM"""
@@ -110,7 +110,10 @@ class FvM(Model):
 
     summaries = "FvMSummaries"
 
-    def __init__(self, input_shape, loss_weight=None, **kwargs):
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
         inputs = Input(shape=input_shape, name="inputs")
 
@@ -126,12 +129,15 @@ class FvM(Model):
         x = Dense(2048, activation="relu")(inputs)
         x = Dense(2048, activation="relu")(x)
         x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
 
         mu = Dense(1024, activation="relu")(x)
+        mu = Dense(1024, activation="relu")(mu)
         mu = Dense(3, activation="linear")(mu)
         mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
 
         kappa = Dense(1024, activation="relu")(x)
+        kappa = Dense(1024, activation="relu")(kappa)
         kappa = Dense(1, activation="relu")(kappa)
         kappa = Lambda(lambda t: K.squeeze(t, 1) + 0.001, name="kappa")(kappa)
 
@@ -146,6 +152,38 @@ class FvM(Model):
         self.keras.compile(
             optimizer=optimizer,
             loss=self.custom_objects["mean_neg_log_prob"],
+            metrics=[self.custom_objects["mean_neg_dot_prod"]])
+        
+
+class Detrack(FvM):
+    """docstring for FvM"""
+    model_name="Detrack"
+
+    custom_objects = {
+            "mean_neg_dot_prod": mean_neg_dot_prod,
+        }
+
+    summaries = "DetrackSummaries"
+
+    @staticmethod
+    def model_fn(inputs):
+        """MLP with two output heads for mu and kappa"""
+        x = Dense(2048, activation="relu")(inputs)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(3, activation="linear")(x)
+        mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(x)
+
+        return mu
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss=self.custom_objects["mean_neg_dot_prod"],
             metrics=[self.custom_objects["mean_neg_dot_prod"]])
 
 
@@ -314,8 +352,12 @@ class Entrack(Model):
 
     def __init__(self, config):
 
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        if isinstance(config["train_path"], list):
+            input_shape = tuple(
+                np.load(config["train_path"][0], allow_pickle=True)["input_shape"])
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
         temperature = Temperature(config["temperature"])
 

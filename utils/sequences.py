@@ -13,14 +13,25 @@ class Samples(Sequence):
         self.batch_size = batch_size
         self.istraining = istraining
         if isinstance(sample_path, list):
+            if isinstance(self, RNNSamples):
+                raise NotImplementedError("Do RNNSamples support several subjects?")
             self.sample_files = [np.load(p, allow_pickle=True)
                 for p in sample_path]
             self.n_samples = np.sum([s["n_samples"] for s in self.sample_files])
 
             self.samples = {}
-            for key in self.sample_files.files:
-                self.samples[key] = np.vstack(
-                    [self.f[key] for f in self.sample_files])
+            np.random.seed(42)
+            perm = np.random.permutation(self.n_samples)
+            for key in self.sample_files[0].files:
+                data = []
+                for f in self.sample_files:
+                    if f[key].ndim < 2:
+                        data.append(np.expand_dims(f[key], -1))
+                    else:
+                        data.append(f[key])
+                self.samples[key] = np.vstack(data)
+                if self.samples[key].shape[0] == self.n_samples:
+                    self.samples[key] = self.samples[key][perm]
         else:
             self.samples = np.load(sample_path, allow_pickle=True)  # lazy loading
             self.n_samples = self.samples["n_samples"]

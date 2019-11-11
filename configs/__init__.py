@@ -41,7 +41,11 @@ def check(config):
     assert config["model_name"] in list(MODELS.keys())
 
     assert "train_path" in config
-    assert os.path.exists(config["train_path"])
+
+    if isinstance(config["train_path"], list):
+        assert all(os.path.exists(path) for path in config["train_path"])
+    else:
+        assert os.path.exists(config["train_path"])
 
     if "eval_path" in config:
         assert os.path.exists(config["eval_path"])
