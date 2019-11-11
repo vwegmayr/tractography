@@ -14,6 +14,7 @@ configs/
 **/*.pyc
 **/*.yml
 scores/
+scoring/
 *.log
 segmented/
 *.trk
