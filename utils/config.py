@@ -1,5 +1,6 @@
 import yaml
 
+import numpy as np
 from functools import reduce
 import operator
 
@@ -116,6 +117,9 @@ def sanitize(config):
 
             elif hasattr(v, "numpy"):
                 config[k] = float(v.numpy())
+
+            elif isinstance(v, np.ndarray):
+                config[k] = None
 
             elif not (isinstance(v, (str, list)) or is_number(v)):
                 config[k] = None
