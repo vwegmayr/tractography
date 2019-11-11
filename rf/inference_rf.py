@@ -157,15 +157,7 @@ def run_rf_inference(config=None, gpu_queue=None):
 
     # Include unfinished fibers:
 
-    for gidx in fiber_idx:
-        fibers.pop(gidx)
-
-    # Return GPU
-
-    K.clear_session()
-    if gpu_queue is not None:
-        gpu_queue.put(gpu_idx)
-
+    fibers = [fibers[gidx] for gidx in range(len(fibers)) if gidx not in fiber_idx]
     # Save Result
 
     fibers = [f[0] for f in fibers]
