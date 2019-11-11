@@ -4,7 +4,7 @@ import subprocess
 import argparse
 
 
-def score_on_tm(fiber_path, blocking=True):
+def score_on_tm(fiber_path, no_trim=False, blocking=True):
 
     env = os.environ.copy()
     if 'CONDA_PREFIX' in env:
@@ -20,11 +20,14 @@ def score_on_tm(fiber_path, blocking=True):
 
     cmd = []
 
-    if "trimmed" not in fiber_path and "tm_all_merged" not in fiber_path:
+    if (not no_trim and
+        "trimmed" not in fiber_path and
+        "tm_all_merged" not in fiber_path):
         ismrm_version = fiber_path.split("/")[1].split("_")[1]
         trimmed_path = fiber_path[:-4] + "_{}_trimmed.trk".format(ismrm_version)
         cmd = [
-            "track_vis", fiber_path, "-nr", "-l", "30", "200", "-o", trimmed_path, "&&"
+            "track_vis", fiber_path, "-nr", "-l", "30", "200",
+            "-o", trimmed_path, "&&"
         ]
     else:
         trimmed_path = fiber_path
@@ -54,6 +57,8 @@ if __name__ == '__main__':
 
     parser.add_argument("trk_path", type=str)
 
+    parser.add_argument("--no_trim", action="store_true")
+
     args = parser.parse_args()
 
-    score_on_tm(args.trk_path)
+    score_on_tm(args.trk_path, args.no_trim)
