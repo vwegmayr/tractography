@@ -32,6 +32,7 @@ import configs
 def run_inference(config=None, gpu_queue=None):
 
     """"""
+    gpu_idx = -1
     try:
         gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
@@ -319,7 +320,7 @@ def infere_batch_seed(xyz, prior, terminator, model,
 def run_rnn_inference(config, gpu_queue=None):
     """"""
 
-    gpu_idx = 0
+    gpu_idx = -1
     try:
         gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
