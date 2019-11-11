@@ -157,14 +157,10 @@ def run_rf_inference(config=None, gpu_queue=None):
 
     # Include unfinished fibers:
 
-    for idx, gidx in enumerate(fiber_idx):
-        if not fibers[gidx]:
-            fibers[gidx].append(xyz[idx, :, :3])
-        else:
-            this_end = xyz[idx, :, :3]
-            other_end = fibers[gidx][0]
-            merged_fiber = np.vstack([np.flip(this_end[1:], axis=0), other_end])
-            fibers[gidx] = [merged_fiber]
+    for gidx in fiber_idx:
+        fibers.pop(gidx)
+
+    # Return GPU
 
     K.clear_session()
     if gpu_queue is not None:

@@ -1,6 +1,6 @@
-model_name: RNN
+model_name: RNNGRU
 
-model_path: models/rnn/2019-11-06-10:53:46/final_model.h5  # RNN
+model_path: models/RNNGRU/2019-11-11-12:22:24/final_model.h5  # RNN
 #model_path: models/RNNLSTM/2019-11-07-15:46:10/final_model.h5  # LSTM
 dwi_path: subjects/ismrm_gt/fod_norm_125.nii.gz
 prior_path: subjects/ismrm_gt/tensor_V1_125.nii.gz
