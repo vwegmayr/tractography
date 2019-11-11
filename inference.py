@@ -32,6 +32,7 @@ import configs
 def run_inference(config=None, gpu_queue=None):
 
     """"""
+    gpu_idx = -1
     try:
         gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
@@ -172,7 +173,6 @@ def run_inference(config=None, gpu_queue=None):
         gc.collect()
 
     # Exclude unfinished fibers (finished = both ends finished)
-
     fibers = [fibers[gidx] for gidx in range(len(fibers)) if gidx not in fiber_idx]
 
     # Return GPU
@@ -311,17 +311,22 @@ def infere_batch_seed(xyz, prior, terminator, model,
     print("{0} times fibers got out of bound, but keep calm as they were "
           "already finished".format(out_of_bound_fibers))
 
-    # Include unfinished fibers:
-    for idx, gidx in enumerate(fiber_idx):
-        if idx not in already_terminated:
-            fibers.pop(gidx)
-            already_terminated = np.concatenate([already_terminated, [idx]])
-
+    # Exclude unfinished fibers:
+    fibers = [fibers[gidx] for gidx in range(len(fibers)) if
+              gidx not in already_terminated]
     return fibers
 
 
-def run_rnn_inference(config):
+def run_rnn_inference(config, gpu_queue=None):
     """"""
+
+    gpu_idx = -1
+    try:
+        gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
+    except Exception as e:
+        print(str(e))
+
     print("Loading DWI...")  ####################################################
     batch_size = config['batch_size']
     dwi_img = nib.load(config['dwi_path'])
@@ -394,6 +399,10 @@ def run_rnn_inference(config):
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
+
+    K.clear_session()
+    if gpu_queue is not None:
+        gpu_queue.put(gpu_idx)
 
     out_dir = config['out_dir']
     if out_dir is None:
