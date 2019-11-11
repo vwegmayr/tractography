@@ -28,6 +28,8 @@ def mark(config, gpu_queue=None):
     gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
 
+    print("Loading DWI data ...")
+
     dwi_img = nib.load(config["dwi_path"])
     dwi_img = nib.funcs.as_closest_canonical(dwi_img)
     dwi_aff = dwi_img.affine
@@ -49,6 +51,8 @@ def mark(config, gpu_queue=None):
 
     # ==========================================================================
 
+    print("Loading fibers ...")
+
     trk_file = nib.streamlines.load(config["fiber_path"])
     tractogram = trk_file.tractogram
     streamlines = tractogram.streamlines
@@ -60,6 +64,7 @@ def mark(config, gpu_queue=None):
 
     n_fibers = len(tractogram)
     fiber_lengths = np.array([len(t.streamline) for t in tractogram])
+    max_length = fiber_lengths.max()
     n_pts = fiber_lengths.sum()
 
     # ==========================================================================
@@ -75,49 +80,61 @@ def mark(config, gpu_queue=None):
 
     block_size = get_blocksize(model, dwi.shape[-1])
 
-    d = np.zeros([n_fibers, dwi.shape[-1] * block_size**3])
-    dnorm = np.zeros([n_fibers, 1])
+    d = np.zeros([n_fibers, dwi.shape[-1] * block_size**3 + 1])
 
-    kappa = [np.zeros([l, 1]) for l in fiber_lengths]
-    log1p_kappa = [np.zeros([l, 1]) for l in fiber_lengths]
-    log_prob = [np.zeros([l, 1]) for l in fiber_lengths]
-    log_prob_map = [np.zeros([l, 1]) for l in fiber_lengths]
+    inputs = np.zeros([
+        n_fibers,
+        max_length,
+        3]
+    )
 
-    max_step = fiber_lengths.max()
+    print("Writing to input array ...")
+
+    for i, fiber_t in enumerate(tangents):
+        inputs[i, :fiber_lengths[i], :] = fiber_t
+
+    outputs = np.zeros([
+        n_fibers,
+        max_length,
+        4]
+    )
+
+    print("Starting iteration ...")
+
     step=0
-    while step < max_step:
+    while step < max_length:
         t0 = time()
 
-        left_idx  = np.where(step < fiber_lengths)[0]
-        n_left = len(left_idx)
-
-        # Get coords of latest segment for each ongoing fiber
-        xyz = np.array([streamlines[i][step] for i in left_idx])
+        xyz = inputs[:, step, :]
         ijk = xyz2ijk(xyz, snap=True)
 
         for ii, idx in enumerate(ijk):
-            d[ii] = dwi[
-                    idx[0]-(block_size // 2): idx[0]+(block_size // 2)+1,
-                    idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
-                    idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
-                    :].flatten()  # returns copy
-            dnorm[ii] = np.linalg.norm(d[ii])
-            d[ii] /= (dnorm[ii] + 10**-2)
+            try:
+                d[ii, :-1] = dwi[
+                        idx[0]-(block_size // 2): idx[0]+(block_size // 2)+1,
+                        idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
+                        idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
+                        :].flatten()  # returns copy
+            except (IndexError, ValueError):
+                pass
+
+        d[:, -1] = np.linalg.norm(d[:, :-1], axis=1) + 10**-2
+
+        d[:, :-1] /= d[:, -1].reshape(-1, 1)
 
         if step == 0:
-            vin = - np.array([tangents[i][step+1] for i in left_idx])
-            vout = - np.array([tangents[i][step] for i in left_idx])
+            vin = - inputs[:, step+1, :]
+            vout = - inputs[:, step, :]
         else:
-            vin = np.array([tangents[i][step-1] for i in left_idx])
-            vout = np.array([tangents[i][step] for i in left_idx])
+            vin = inputs[:, step-1, :]
+            vout = inputs[:, step, :]
 
-        inputs = np.hstack([vin, d[:n_left], dnorm[:n_left]])
-
+        model_inputs = np.hstack([vin, d])
         chunk = 2**15  # 32768
-        n_chunks = np.ceil(n_left / chunk).astype(int)
+        n_chunks = np.ceil(n_fibers / chunk).astype(int)
         for c in range(n_chunks):
 
-            fvm_pred, kappa_pred = model(inputs[c * chunk : (c + 1) * chunk])
+            fvm_pred, kappa_pred = model(model_inputs[c * chunk : (c + 1) * chunk])
 
             log1p_kappa_pred = np.log1p(kappa_pred)
 
@@ -125,39 +142,53 @@ def mark(config, gpu_queue=None):
 
             log_prob_map_pred = fvm_pred._log_normalization() + kappa_pred
 
-            for ii, i in enumerate(left_idx[c * chunk : (c + 1) * chunk]):
+            outputs[c * chunk : (c + 1) * chunk, step, 0] = kappa_pred
+            outputs[c * chunk : (c + 1) * chunk, step, 1] = log1p_kappa_pred
+            outputs[c * chunk : (c + 1) * chunk, step, 2] = log_prob_pred
+            outputs[c * chunk : (c + 1) * chunk, step, 3] = log_prob_map_pred
 
-                kappa[i][step] = kappa_pred[ii]
-                log1p_kappa[i][step] = log1p_kappa_pred[ii]
-                log_prob[i][step] = log_prob_pred[ii]
-                log_prob_map[i][step] = log_prob_map_pred[ii]
-
-        print("Step {:3d}/{:3d} @ {:4.0f} steps/sec".format(
-            step, max_step, n_left / (time() - t0)), end="\r")
+        print("Step {:3d}/{:3d}, ETA: {:4.0f} min".format(
+            step, max_length, (max_length-step)*(time()-t0)/60 ), end="\r")
 
         step += 1
 
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
 
-    log_prob_ratio = [
+
+    kappa = [outputs[i, :fiber_lengths[i], 0].reshape(-1, 1)
+        for i in range(n_fibers)]
+    log1p_kappa = [outputs[i, :fiber_lengths[i], 1].reshape(-1, 1) 
+        for i in range(n_fibers)]
+    log_prob = [outputs[i, :fiber_lengths[i], 2].reshape(-1, 1)
+        for i in range(n_fibers)]
+    log_prob_map = [outputs[i, :fiber_lengths[i], 3].reshape(-1, 1) 
+        for i in range(n_fibers)]
+
+    log_prob_sum = [
         np.ones_like(log_prob[i]) * (log_prob[i].sum() / log_prob_map[i].sum())
         for i in range(n_fibers)
     ]
-
-    mean_log_prob_ratio = [
+    log_prob_ratio = [
         np.ones_like(log_prob[i]) * (log_prob[i] - log_prob_map[i]).mean()
         for i in range(n_fibers)
     ]
 
+    other_data={}
+    for key in list(trk_file.tractogram.data_per_point.keys()):
+        if key not in ["kappa", "log1p_kappa", "log_prob", "log_prob_map",
+            "log_prob_sum", "log_prob_ratio"]:
+            other_data[key] = trk_file.tractogram.data_per_point[key]
+
     data_per_point = PerArraySequenceDict(
         n_rows=n_pts,
         kappa=kappa,
-        log1p_kappa=log1p_kappa,
+        #log1p_kappa=log1p_kappa,
         log_prob=log_prob,
-        log_prob_map=log_prob_map,
+        #log_prob_map=log_prob_map,
+        log_prob_sum=log_prob_sum,
         log_prob_ratio=log_prob_ratio,
-        mean_log_prob_ratio=mean_log_prob_ratio
+        **other_data
     )
     tractogram = Tractogram(
         streamlines=tractogram.streamlines,
