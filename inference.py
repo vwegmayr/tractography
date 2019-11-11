@@ -173,8 +173,7 @@ def run_inference(config=None, gpu_queue=None):
 
     # Exclude unfinished fibers (finished = both ends finished)
 
-    for gidx in fiber_idx:
-        fibers.pop(gidx)
+    fibers = [fibers[gidx] for gidx in range(len(fibers)) if gidx not in fiber_idx]
 
     # Return GPU
 
