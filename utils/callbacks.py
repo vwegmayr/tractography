@@ -49,7 +49,7 @@ class AutomaticTemperatureSchedule(Callback):
         super(AutomaticTemperatureSchedule, self).__init__()
 
         self.T = temperature
-        self.T_start = float(K.get_value(temperature))
+        self.T_start = np.round(float(K.get_value(self.T)), 6)
         assert self.T_start > T_stop
         self.T_stop = T_stop
         self.decay = decay

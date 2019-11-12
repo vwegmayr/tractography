@@ -1,0 +1,42 @@
+model_name: RNNEntrack
+model_type: conditional
+
+action: training
+
+temperature: 0.04
+
+optimizer: Adam
+opt_params:
+  learning_rate: 0.0001
+  clipnorm: 10.0
+
+epochs: 10
+batch_size: 10
+shuffle: False
+
+callbacks:
+  RunningWindowLogger:
+    metrics: ["kappa_mean", "fvm_mean_neg_dot_prod"]
+    window_size: 32
+  AutomaticTemperatureSchedule:
+    temperature: None
+    T_stop: 0.005
+    decay: 0.99
+    tol: 0.04
+    min_lr: 0.0001
+    n_checkpoints: 10
+    out_dir: None
+  EntrackSummaries:
+    update_freq: 256
+    activations_freq: "epoch"
+    scatter_freq: "epoch"
+    out_dir: None
+    eval_seq: None
+  RNNResetCallBack:
+    reset_batches:
+
+out_dir: None
+
+# W0001
+train_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
+eval_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz

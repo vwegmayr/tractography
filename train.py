@@ -62,7 +62,7 @@ def train(config=None, gpu_queue=None):
             epochs=config["epochs"],
             shuffle=config["shuffle"],
             max_queue_size=4 * config["batch_size"],
-            verbose=1
+            verbose=0
         )
     except KeyboardInterrupt:
         model.stop_training = True

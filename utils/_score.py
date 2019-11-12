@@ -3,8 +3,11 @@ import sys
 import subprocess
 import argparse
 
+from utils.trim import trim
 
-def score_on_tm(fiber_path, no_trim=False, blocking=True):
+
+def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
+    blocking=True):
 
     env = os.environ.copy()
     if 'CONDA_PREFIX' in env:
@@ -18,24 +21,16 @@ def score_on_tm(fiber_path, no_trim=False, blocking=True):
             os.path.join("envs", env_name), os.path.join("envs", "scoring")
             )
 
-    cmd = []
+    if not no_trim:
+        trk_path = trim(trk_path, min_length, max_length)
 
-    if (not no_trim and
-        "trimmed" not in fiber_path and
-        "tm_all_merged" not in fiber_path):
-        ismrm_version = fiber_path.split("/")[1].split("_")[1]
-        trimmed_path = fiber_path[:-4] + "_{}_trimmed.trk".format(ismrm_version)
-        cmd = [
-            "track_vis", fiber_path, "-nr", "-l", "30", "200",
-            "-o", trimmed_path, "&&"
-        ]
-    else:
-        trimmed_path = fiber_path
+    if out_dir is None:
+        out_dir = os.getcwd()
 
-    cmd += [
-        "python", "scoring/scripts/score_tractogram.py", trimmed_path,
+    cmd = [
+        "python", "scoring/scripts/score_tractogram.py", trk_path,
         "--base_dir", "scoring/scoring_data",
-        "--out_dir", os.getcwd(),
+        "--out_dir", out_dir,
         "--save_full_vc", "--save_full_ic", "--save_full_nc", "--save_ib",
         "--save_vb"
     ]
@@ -61,4 +56,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    score_on_tm(args.trk_path, args.no_trim)
+    score(args.trk_path, no_trim=args.no_trim)
