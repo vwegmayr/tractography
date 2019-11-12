@@ -23,7 +23,7 @@ from models import RNNLSTM as LSTMModel
 from utils.config import load
 from utils.prediction import Prior, Terminator, get_blocksize
 from utils.training import setup_env, maybe_get_a_gpu
-from utils._score import score_on_tm
+from utils._score import score
 
 import configs
 
@@ -208,7 +208,11 @@ def run_inference(config=None, gpu_queue=None):
         yaml.dump(config, file, default_flow_style=False)
 
     if config["score"]:
-        score_on_tm(fiber_path)
+        score(
+            fiber_path,
+            min_length=config["min_length"],
+            max_length=config["max_length"]
+            )
 
     return tractogram
 

@@ -5,7 +5,7 @@ from time import sleep
 
 from pprint import pprint
 from utils.config import load, make_configs_from
-from utils._score import score_on_tm
+from utils._score import score
 from utils._mark import mark
 from train import train
 from inference import run_inference
@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
 
         try:
-            blockPrint()
+            #blockPrint()
             while len(configurations) > 0:
                 while not gpu_queue.empty() and len(configurations) > 0:
                     p = Process(target=target, args=(configurations.pop(), gpu_queue))
@@ -100,7 +100,7 @@ if __name__ == '__main__':
 
         for fiber_path in config["fiber_path"]:
             print("Scoring", fiber_path.split("/")[-1], "...")
-            procs.append(score_on_tm(fiber_path, blocking=False))
+            procs.append(score(fiber_path, blocking=False))
 
         while any(p.poll() is None for p in procs):
             sleep(1)
@@ -122,7 +122,7 @@ if __name__ == '__main__':
             gpu_queue.put(str(idx))
 
         try:
-            blockPrint()
+            #blockPrint()
             while len(configurations) > 0:
                 while not gpu_queue.empty() and len(configurations) > 0:
                     p = Process(target=mark, args=(configurations.pop(), gpu_queue))
