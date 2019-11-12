@@ -313,7 +313,7 @@ def infere_batch_seed(xyz, prior, terminator, model,
 
     # Exclude unfinished fibers:
     fibers = [fibers[gidx] for gidx in range(len(fibers)) if
-              gidx not in already_terminated]
+              gidx in already_terminated]
     return fibers
 
 

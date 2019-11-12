@@ -1,8 +1,10 @@
-from .model_classes import FvM, FvMHybrid, RNNGRU, Entrack, RNNLSTM, Detrack
+from .model_classes import FvM, FvMHybrid, RNNGRU, Entrack, RNNLSTM, Detrack, \
+    Trackifier
 
 MODELS = {"FvM": FvM,
           "Detrack": Detrack,
           "FvMHybrid": FvMHybrid,
           "RNNGRU": RNNGRU,
           "Entrack": Entrack,
-          'RNNLSTM': RNNLSTM}
+          'RNNLSTM': RNNLSTM,
+          'Trackifier': Trackifier}

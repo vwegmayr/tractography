@@ -8,6 +8,7 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 
 from utils.config import deep_update
 from utils.training import Temperature
+from dipy.io.gradients import read_bvals_bvecs
 
 from utils import sequences
 
@@ -63,6 +64,24 @@ def neg_dot_prod(y_true, y_pred):
     return - K.sum(y_true * y_pred, axis=1)
 
 
+class OneHotCategorical(tfd.OneHotCategorical):
+
+    def __init__(self, bvecs_path, *args, **kwargs):
+        tfd.OneHotCategorical.__init__(self, *args, **kwargs)
+        _, bvecs = read_bvals_bvecs(None, bvecs_path)
+        self.bvecs = tf.convert_to_tensor(bvecs, dtype=np.float32)
+
+    @property
+    def mean_direction(self):
+        vecs = tf.tensordot(self.probs, self.bvecs, axes=[[1], [0]])
+        return vecs / tf.norm(vecs, axis=1, keepdims=True)
+
+    def sample(self, sample_shape=(), seed=None, name='sample', **kwargs):
+        cat_samples = self._call_sample_n(sample_shape, seed, name, **kwargs)
+        indices = tf.argmax(cat_samples, axis=1)
+        return tf.gather(self.bvecs, indices)
+
+
 class FisherVonMises(tfd.VonMisesFisher):
     """Numerically stable implementation for d=3"""
 
@@ -84,12 +103,11 @@ class FisherVonMises(tfd.VonMisesFisher):
 class Model(object):
     """docstring for Model"""
     
-    def get_sequence(self, sample_path, batch_size, istraining=True):
-        if sample_path is None:
-            return None
-        return getattr(sequences, self.sample_class)(sample_path,
-                                                     batch_size,
-                                                     istraining)
+    def get_sequence(self, config, istraining=True):
+        config['istraining'] = istraining
+        config['sample_path'] = config['train_path'] if istraining \
+            else config['eval_path']
+        return getattr(sequences, self.sample_class)(config)
 
     @staticmethod
     def check(config):
@@ -427,3 +445,51 @@ class Entrack(Model):
         """Assert model specific parameters"""
         assert "temperature" in config
         assert config["temperature"] > 0
+
+
+class Trackifier(Model):
+    """docstring for Trackifier"""
+
+    model_name="Trackifier"
+
+    sample_class = "ClassifierSamples"
+
+    summaries = "FvMSummaries"
+
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
+        inputs = Input(shape=input_shape, name="inputs")
+
+        self.keras = tf.keras.Model(
+            inputs,
+            self.model_fn(inputs, config["bvec_path"]),
+            name=self.model_name
+        )
+
+    @staticmethod
+    def model_fn(inputs, bvecs_path):
+        """MLP with two output heads for mu and kappa"""
+        x = Dense(2048, activation="relu")(inputs)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(72, activation="softmax", name='output')(x)
+
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
+                probs=params),
+            convert_to_tensor_fn=tfd.Distribution.mean,
+            name="trackifier"
+        )(x)
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss={'trackifier': 'categorical_crossentropy'},
+            metrics=['accuracy'])

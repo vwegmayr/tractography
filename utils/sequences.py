@@ -1,22 +1,20 @@
 import numpy as np
 
 from tensorflow.keras.utils import Sequence
+from tensorflow.keras.utils import to_categorical
+from dipy.io.gradients import read_bvals_bvecs
 
 
 class Samples(Sequence):
-    def __init__(self,
-                 sample_path,
-                 batch_size=256,
-                 istraining=True,
-                 max_n_samples=np.inf):
+    def __init__(self, config):
         """"""
-        self.batch_size = batch_size
-        self.istraining = istraining
-        if isinstance(sample_path, list):
+        self.batch_size = config['batch_size']
+        self.istraining = config['istraining']
+        if isinstance(config['sample_path'], list):
             if isinstance(self, RNNSamples):
                 raise NotImplementedError("Do RNNSamples support several subjects?")
             self.sample_files = [np.load(p, allow_pickle=True)
-                for p in sample_path]
+                for p in config['sample_path']]
             self.n_samples = np.sum([s["n_samples"] for s in self.sample_files])
 
             self.samples = {}
@@ -34,7 +32,7 @@ class Samples(Sequence):
                 if self.samples[key].shape[0] == self.n_samples:
                     self.samples[key] = self.samples[key][perm]
         else:
-            self.samples = np.load(sample_path, allow_pickle=True)  # lazy loading
+            self.samples = np.load(config['sample_path'], allow_pickle=True)  # lazy loading
             self.n_samples = self.samples["n_samples"]
 
     def __len__(self):
@@ -162,3 +160,23 @@ class FvMHybridSamples(FvMSamples):
             {"fvm": outgoing, "isterminal": isterminal},
             {"fvm": fvm_sample_weights, "isterminal": isterminal_sample_weights}
         )
+
+
+class ClassifierSamples(Samples):
+
+    def __init__(self, *args, **kwargs):
+        super(ClassifierSamples, self).__init__(*args, **kwargs)
+        print("Loading {} samples...".format("train" if self.istraining else "eval"))
+        configs = args[0]
+        self.inputs = self.samples["inputs"]
+        self.outgoing = self.samples["outgoing"]
+
+        _, bvecs = read_bvals_bvecs(None, configs["bvec_path"])
+        self.out_classes = to_categorical(
+            np.array([np.argmax([np.dot(base_vec, outvec) for base_vec in bvecs])
+                      for outvec in self.outgoing]))
+
+    def __getitem__(self, idx):
+        x_batch = self.inputs[idx*self.batch_size:(idx + 1)*self.batch_size]
+        y_batch = self.out_classes[idx*self.batch_size:(idx + 1)*self.batch_size]
+        return x_batch, y_batch

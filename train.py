@@ -31,17 +31,17 @@ def train(config=None, gpu_queue=None):
     model = MODELS[config["model_name"]](config)
 
     try:
-        train_seq = model.get_sequence(config["train_path"],
-            config["batch_size"])
-        eval_seq = model.get_sequence(config.get("eval_path"),
-            config["batch_size"], istraining=False)
+        train_seq = model.get_sequence(config)
+        eval_seq = model.get_sequence(config, istraining=False)
         configs.deep_update(config, {"train_seq": train_seq,
                                      "eval_seq": eval_seq})
 
+        checkpoints = out_dir + '/inter_model_{epoch:02d}-{val_loss:.2f}.h5'
         if "RNN" in config["model_name"]:
-            checkpoints = out_dir + '/inter_model_{epoch:02d}-{val_loss:.2f}.h5'
             configs.deep_update(config,
                                 {"reset_batches": train_seq.reset_batches})
+            configs.deep_update(config, {"filepath": checkpoints})
+        if 'Trackifier' in config['model_name']:
             configs.deep_update(config, {"filepath": checkpoints})
 
         callbacks = parse_callbacks(config["callbacks"])
