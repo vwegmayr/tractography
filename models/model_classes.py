@@ -8,6 +8,7 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 
 from utils.config import deep_update
 from utils.training import Temperature
+from dipy.io.gradients import read_bvals_bvecs
 
 from utils import sequences
 
@@ -61,6 +62,19 @@ def neg_log_prob(y_true, dist_pred):
 def neg_dot_prod(y_true, y_pred):
     y_pred = K.l2_normalize(y_pred, axis=-1)
     return - K.sum(y_true * y_pred, axis=1)
+
+
+class OneHotCategorical(tfd.OneHotCategorical):
+
+    def __init__(self, bvecs_path, *args, **kwargs):
+        tfd.OneHotCategorical.__init__(self, *args, **kwargs)
+        _, bvecs = read_bvals_bvecs(None, bvecs_path)
+        self.bvecs = tf.convert_to_tensor(bvecs, dtype=np.float32)
+
+    @property
+    def mean_direction(self):
+        vecs = tf.tensordot(self.probs, self.bvecs, axes=[[1], [0]])
+        return vecs / tf.norm(vecs, axis=1, keepdims=True)
 
 
 class FisherVonMises(tfd.VonMisesFisher):
@@ -446,12 +460,12 @@ class Trackifier(Model):
 
         self.keras = tf.keras.Model(
             inputs,
-            self.model_fn(inputs),
+            self.model_fn(inputs, config["bvec_path"]),
             name=self.model_name
         )
 
     @staticmethod
-    def model_fn(inputs):
+    def model_fn(inputs, bvecs_path):
         """MLP with two output heads for mu and kappa"""
         x = Dense(2048, activation="relu")(inputs)
         x = Dense(2048, activation="relu")(x)
@@ -462,10 +476,15 @@ class Trackifier(Model):
         x = Dense(1024, activation="relu")(x)
         x = Dense(72, activation="softmax", name='output')(x)
 
-        return x
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
+                probs=params),
+            convert_to_tensor_fn=tfd.Distribution.mean,
+            name="trackifier"
+        )(x)
 
     def compile(self, optimizer):
         self.keras.compile(
             optimizer=optimizer,
-            loss={'output': 'categorical_crossentropy'},
+            loss={'trackifier': 'categorical_crossentropy'},
             metrics=['accuracy'])
