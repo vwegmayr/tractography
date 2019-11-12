@@ -76,6 +76,11 @@ class OneHotCategorical(tfd.OneHotCategorical):
         vecs = tf.tensordot(self.probs, self.bvecs, axes=[[1], [0]])
         return vecs / tf.norm(vecs, axis=1, keepdims=True)
 
+    def sample(self, sample_shape=(), seed=None, name='sample', **kwargs):
+        cat_samples = self._call_sample_n(sample_shape, seed, name, **kwargs)
+        indices = tf.argmax(cat_samples, axis=1)
+        return tf.gather(self.bvecs, indices)
+
 
 class FisherVonMises(tfd.VonMisesFisher):
     """Numerically stable implementation for d=3"""
