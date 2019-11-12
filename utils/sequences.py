@@ -22,14 +22,15 @@ class Samples(Sequence):
             self.samples = {}
             np.random.seed(42)
             perm = np.random.permutation(self.n_samples)
+            print("Merging data from several subjects ...")
             for key in self.sample_files[0].files:
-                data = []
+                self.samples[key] = []
                 for f in self.sample_files:
                     if f[key].ndim < 2:
-                        data.append(np.expand_dims(f[key], -1))
+                        self.samples[key].append(np.expand_dims(f[key], -1))
                     else:
-                        data.append(f[key])
-                self.samples[key] = np.vstack(data)
+                        self.samples[key].append(f[key])
+                self.samples[key] = np.vstack(self.samples[key])
                 if self.samples[key].shape[0] == self.n_samples:
                     self.samples[key] = self.samples[key][perm]
         else:
