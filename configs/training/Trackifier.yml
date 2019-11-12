@@ -6,12 +6,12 @@ opt_params:
   clipnorm: 10.0
 
 epochs: 10
-batch_size: 50
+batch_size: 128
 shuffle: False
 
-train_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
-eval_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
-bvec_path: subjects/644044/bvecs_input
+train_path: /local/home/vwegmayr/ijcv19/subjects/992774/samples/2019-11-11-19:37:28/samples.npz
+eval_path: /local/home/vwegmayr/ijcv19/subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+bvec_path: /local/home/vwegmayr/ijcv19/subjects/992774/bvecs_input
 
 callbacks:
   ModelCheckpoint:
