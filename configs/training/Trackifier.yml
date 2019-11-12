@@ -1,0 +1,20 @@
+model_name: Trackifier
+
+optimizer: Adam
+opt_params:
+  learning_rate: 0.0001
+  clipnorm: 10.0
+
+epochs: 10
+batch_size: 50
+shuffle: False
+
+train_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
+eval_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
+bvec_path: subjects/644044/bvecs_input
+
+callbacks:
+  ModelCheckpoint:
+    filepath:
+
+out_dir: None
