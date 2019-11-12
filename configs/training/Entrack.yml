@@ -14,9 +14,6 @@ epochs: 10
 batch_size: 256
 shuffle: True
 
-train_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
-eval_path: subjects/644044/small_samples/2019-11-05-12:33:28/samples.npz
-
 callbacks:
   RunningWindowLogger:
     metrics: ["kappa_mean", "fvm_mean_neg_dot_prod"]
@@ -37,3 +34,64 @@ callbacks:
     eval_seq: None
 
 out_dir: None
+
+# W0001
+train_path:
+  - subjects/601127/samples/2019-11-11-19:36:12/samples.npz
+  #- subjects/702133/samples/2019-11-11-19:35:43/samples.npz
+  #- subjects/802844/samples/2019-11-11-19:35:15/samples.npz
+  #- subjects/992774/samples/2019-11-11-10:39:06/samples.npz
+eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+
+
+# W0002
+#train_path:
+#  - subjects/601127/samples/2019-11-11-19:43:26/samples.npz
+#  - subjects/702133/samples/2019-11-11-19:42:57/samples.npz
+#  - subjects/802844/samples/2019-11-11-19:43:07/samples.npz
+#  - subjects/992774/samples/2019-11-11-19:37:28/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+
+
+# W0004
+#train_path:
+#  - subjects/601127/samples/2019-11-11-19:51:04/samples.npz
+#  - subjects/702133/samples/2019-11-11-19:49:35/samples.npz
+#  - subjects/802844/samples/2019-11-11-19:50:16/samples.npz                                            │Saving subjects/702133/samples/2019-11-11-19:49:35/samples.npz
+#  - subjects/992774/samples/2019-11-11-19:45:29/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+
+
+# W0008
+#train_path:
+#  - subjects/601127/samples/2019-11-11-20:04:50/samples.npz
+#  - subjects/702133/samples/2019-11-11-20:01:45/samples.npz
+#  - subjects/802844/samples/2019-11-11-20:03:42/samples.npz
+#  - subjects/992774/samples/2019-11-11-19:53:40/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+
+
+# W0016
+#train_path: 
+#  - subjects/601127/samples/2019-11-11-20:32:04/samples.npz
+#  - subjects/702133/samples/2019-11-11-20:24:55/samples.npz
+#  - subjects/802844/samples/2019-11-11-20:27:46/samples.npz
+#  - subjects/992774/samples/2019-11-11-20:11:53/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+
+# W0032
+#train_path:
+#  - subjects/601127/samples/2019-11-11-21:20:27/samples.npz
+#  - subjects/702133/samples/2019-11-11-21:02:32/samples.npz
+#  - subjects/802844/samples/2019-11-11-21:08:39/samples.npz
+#  - subjects/992774/samples/2019-11-11-20:46:13/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+
+
+# W0050
+#train_path:
+#  - subjects/702133/samples/2019-11-11-14:32:55/samples.npz
+#  - subjects/802844/samples/2019-11-11-14:43:39/samples.npz
+#  - subjects/601127/samples/2019-11-11-14:29:24/samples.npz
+#  - subjects/992774/samples/2019-11-11-14:27:38/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
