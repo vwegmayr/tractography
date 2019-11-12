@@ -108,7 +108,7 @@ class RNNSamples(Samples):
         x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, np.newaxis, ...]
         y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, np.newaxis, ...]
 
-        return (x_batch, y_batch)
+        return x_batch, {"fvm": y_batch, "kappa": np.zeros(len(y_batch))}
 
     def _get_reset_batches(self):
         """For sure there is a smarter way for this ... :)"""
