@@ -84,12 +84,11 @@ class FisherVonMises(tfd.VonMisesFisher):
 class Model(object):
     """docstring for Model"""
     
-    def get_sequence(self, sample_path, batch_size, istraining=True):
-        if sample_path is None:
-            return None
-        return getattr(sequences, self.sample_class)(sample_path,
-                                                     batch_size,
-                                                     istraining)
+    def get_sequence(self, config, istraining=True):
+        config['istraining'] = istraining
+        config['sample_path'] = config['train_path'] if istraining \
+            else config['eval_path']
+        return getattr(sequences, self.sample_class)(config)
 
     @staticmethod
     def check(config):
@@ -427,3 +426,46 @@ class Entrack(Model):
         """Assert model specific parameters"""
         assert "temperature" in config
         assert config["temperature"] > 0
+
+
+class Trackifier(Model):
+    """docstring for Trackifier"""
+
+    model_name="Trackifier"
+
+    sample_class = "ClassifierSamples"
+
+    summaries = "FvMSummaries"
+
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
+        inputs = Input(shape=input_shape, name="inputs")
+
+        self.keras = tf.keras.Model(
+            inputs,
+            self.model_fn(inputs),
+            name=self.model_name
+        )
+
+    @staticmethod
+    def model_fn(inputs):
+        """MLP with two output heads for mu and kappa"""
+        x = Dense(2048, activation="relu")(inputs)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(72, activation="softmax", name='output')(x)
+
+        return x
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss={'output': 'categorical_crossentropy'},
+            metrics=['accuracy'])
