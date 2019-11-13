@@ -358,7 +358,7 @@ def run_rnn_inference(config, gpu_queue=None):
 
     model_config = {'batch_size': batch_size,
                     'input_shape':  trained_model.input_shape[1:],
-                    'temperature': trained_model.temperature}
+                    'temperature': 0.04}
     modelClass = MODELS[model_name](model_config)
     prediction_model = modelClass(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
