@@ -351,9 +351,10 @@ def run_rnn_inference(config, gpu_queue=None):
 
     if hasattr(MODELS[model_name], "custom_objects"):
         trained_model = load_model(config['model_path'],
-                           custom_objects=MODELS[model_name].custom_objects)
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
     else:
-        trained_model = load_model(config['model_path'])
+        trained_model = load_model(config['model_path'], compile=False)
 
     modelClass = GRUModel if model_name == 'RNNGRU' else LSTMModel
     model_config = {'batch_size': batch_size,
