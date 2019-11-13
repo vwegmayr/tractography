@@ -11,7 +11,7 @@ opt_params:
   clipnorm: 10.0
 
 epochs: 10
-batch_size: 10
+batch_size: 128
 shuffle: False
 
 callbacks:
@@ -38,5 +38,5 @@ callbacks:
 out_dir: None
 
 # W0001
-train_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
-eval_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
+train_path: /local/tract/rnn_samples/992774/2019-11-12-11:18:30/samples.npz
+eval_path: /local/tract/rnn_samples/644044/2019-11-12-10:41:22//samples.npz
