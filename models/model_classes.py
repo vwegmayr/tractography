@@ -417,7 +417,7 @@ class Entrack(Model):
 
         if 'input_shape' in config:
             input_shape = config['input_shape']
-        if isinstance(config["train_path"], list):
+        elif isinstance(config["train_path"], list):
             input_shape = tuple(
                 np.load(config["train_path"][0], allow_pickle=True)["input_shape"])
         else:

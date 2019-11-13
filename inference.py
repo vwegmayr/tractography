@@ -356,9 +356,10 @@ def run_rnn_inference(config, gpu_queue=None):
     else:
         trained_model = load_model(config['model_path'], compile=False)
 
-    modelClass = GRUModel if model_name == 'RNNGRU' else LSTMModel
     model_config = {'batch_size': batch_size,
-                    'input_shape':  trained_model.input_shape[1:]}
+                    'input_shape':  trained_model.input_shape[1:],
+                    'temperature': trained_model.temperature}
+    modelClass = MODELS[model_name](model_config)
     prediction_model = modelClass(model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
