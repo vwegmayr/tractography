@@ -503,6 +503,8 @@ class RNNEntrack(Entrack):
 
     sample_class = "RNNSamples"
 
+    summaries = "TBSummaries"
+
     @staticmethod
     @abstractmethod
     def _shared_layers(inputs):

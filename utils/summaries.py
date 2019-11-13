@@ -10,6 +10,7 @@ from tensorflow.python.ops import summary_ops_v2
 
 from sklearn.metrics import precision_recall_curve, average_precision_score
 
+
 class TBSummaries(TensorBoard):
 
     def __init__(self,
@@ -232,7 +233,7 @@ class EntrackSummaries(TBSummaries):
 
         mu_true = self.eval_seq.outgoing
 
-        agreement = np.sum(np.squeeze(mu_true) * mu_pred, axis=1)
+        agreement = np.sum(mu_true * mu_pred, axis=1)
         kappa_mean = kappa_pred.mean() + 10**-9
         kappa_pred /= kappa_mean
 
