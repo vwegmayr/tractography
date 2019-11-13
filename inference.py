@@ -220,7 +220,7 @@ def run_inference(config=None, gpu_queue=None):
 
 
 def infere_batch_seed(xyz, prior, terminator, model,
-                      dwi, dwi_affi, max_steps, step_size):
+                      dwi, dwi_affi, max_steps, step_size, model_name=''):
 
     n_seeds = len(xyz)
     fiber_idx = np.hstack([
@@ -270,7 +270,18 @@ def infere_batch_seed(xyz, prior, terminator, model,
         else:
             inputs = np.hstack([vout, d, dnorm])
 
-        vout = model.predict(inputs[:, np.newaxis, :]).squeeze()
+        outputs = model.predict(inputs[:, np.newaxis, :])
+
+        if 'Entrack' in model_name:
+            if isinstance(outputs, list):
+                outputs = outputs[0]
+
+            if config['predict_fn'] == "mean":
+                vout = outputs.mean_direction.numpy()
+            elif config['predict_fn'] == "sample":
+                vout = outputs.sample().numpy()
+        else:
+            vout = outputs.squeeze()
 
         rout = xyz[:, -1, :3] + step_size * vout
         rout = np.hstack([rout, np.ones((n_seeds, 1))]).reshape(-1, 1, 4)
@@ -388,7 +399,7 @@ def run_rnn_inference(config, gpu_queue=None):
         if i == batch_size//2 * (n_seeds // (batch_size // 2)):
             last_batch_size = (n_seeds - i) * 2
             model_config['batch_size'] = last_batch_size
-            prediction_model = modelClass(model_config).keras
+            prediction_model = MODELS[model_name](model_config).keras
             prediction_model.set_weights(trained_model.get_weights())
 
         prediction_model.reset_states()
@@ -396,7 +407,7 @@ def run_rnn_inference(config, gpu_queue=None):
             i // (batch_size // 2), xyz_batch.shape))
         batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
             prediction_model, dwi, dwi_affi, config['max_steps'],
-                                         config['step_size'])
+                                         config['step_size'], model_name=model_name)
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
