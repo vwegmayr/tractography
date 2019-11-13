@@ -1,4 +1,4 @@
-model_name: RNNEntrack
+model_name: RNNLSTMEntrack
 model_type: conditional
 
 action: training
@@ -11,7 +11,7 @@ opt_params:
   clipnorm: 10.0
 
 epochs: 10
-batch_size: 10
+batch_size: 128
 shuffle: False
 
 callbacks:
@@ -26,17 +26,11 @@ callbacks:
     min_lr: 0.0001
     n_checkpoints: 10
     out_dir: None
-  EntrackSummaries:
-    update_freq: 256
-    activations_freq: "epoch"
-    scatter_freq: "epoch"
-    out_dir: None
-    eval_seq: None
   RNNResetCallBack:
     reset_batches:
 
 out_dir: None
 
 # W0001
-train_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
-eval_path: subjects/644044/small_samples/2019-11-06-10:10:51/samples.npz
+train_path: /local/tract/rnn_samples/992774/2019-11-12-11:18:30/samples.npz
+eval_path: /local/tract/rnn_samples/644044/2019-11-12-10:41:22//samples.npz

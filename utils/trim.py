@@ -41,6 +41,7 @@ def trim(trk_path, min_length, max_length, fast=True):
     print("Saving trimmed fibers to {}".format(trimmed_path))
     return trimmed_path
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Trim fibers.")

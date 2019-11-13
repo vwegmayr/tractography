@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
@@ -205,6 +206,54 @@ class Detrack(FvM):
             metrics=[self.custom_objects["mean_neg_dot_prod"]])
 
 
+class Trackifier(Model):
+    """docstring for Trackifier"""
+
+    model_name="Trackifier"
+
+    sample_class = "ClassifierSamples"
+
+    summaries = "FvMSummaries"
+
+    def __init__(self, config):
+
+        input_shape = tuple(
+            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+
+        inputs = Input(shape=input_shape, name="inputs")
+
+        self.keras = tf.keras.Model(
+            inputs,
+            self.model_fn(inputs, config["bvec_path"]),
+            name=self.model_name
+        )
+
+    @staticmethod
+    def model_fn(inputs, bvecs_path):
+        """MLP with two output heads for mu and kappa"""
+        x = Dense(2048, activation="relu")(inputs)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+        x = Dense(2048, activation="relu")(x)
+
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(1024, activation="relu")(x)
+        x = Dense(72, activation="softmax", name='output')(x)
+
+        return tfp.layers.DistributionLambda(
+            make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
+                probs=params),
+            convert_to_tensor_fn=tfd.Distribution.mean,
+            name="trackifier"
+        )(x)
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss={'trackifier': 'categorical_crossentropy'},
+            metrics=['accuracy'])
+
+
 class FvMHybrid(Model):
     """docstring for FvMHybrid"""
     model_name="FvMHybrid"
@@ -274,9 +323,9 @@ class FvMHybrid(Model):
         )
 
 
-class RNNGRU(Model):
+class RNNModel(Model):
 
-    model_name="RNNGRU"
+    model_name="RNNModel"
 
     sample_class = "RNNSamples"
 
@@ -294,6 +343,25 @@ class RNNGRU(Model):
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
         self.keras = tf.keras.Model(
             inputs, self.model_fn(inputs), name=self.model_name)
+
+    @staticmethod
+    @abstractmethod
+    def model_fn(inputs):
+        pass
+
+    def compile(self, optimizer):
+        self.keras.compile(
+            optimizer=optimizer,
+            loss={'fvm': 'mean_squared_error'})
+
+
+class RNNGRU(RNNModel):
+
+    model_name="RNNGRU"
+
+    sample_class = "RNNSamples"
+
+    summaries = "RNNSummaries"
 
     @staticmethod
     def model_fn(inputs):
@@ -304,35 +372,17 @@ class RNNGRU(Model):
             for hidden_size in hidden_size[1:-1]:
                 x = GRU(hidden_size, return_sequences=True, stateful=True)(x)
             x = GRU(hidden_size[-1], return_sequences=True, stateful=True)(x)
-        x = Dense(3, activation='linear', name='output1')(x)
+        x = Dense(3, activation='linear', name='fvm')(x)
         return x
 
-    def compile(self, optimizer):
-        self.keras.compile(
-            optimizer=optimizer,
-            loss={'output1': 'mean_squared_error'})
 
-
-class RNNLSTM(Model):
+class RNNLSTM(RNNModel):
 
     model_name="RNNLSTM"
 
     sample_class = "RNNSamples"
 
     summaries = "RNNSummaries"
-
-    def __init__(self, config):
-
-        if 'input_shape' in config:
-            input_shape = config['input_shape']
-        else:
-            input_shape = tuple(
-                np.load(config["train_path"], allow_pickle=True)["input_shape"])
-
-        batch_size = config["batch_size"]
-        inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
-        self.keras = tf.keras.Model(
-            inputs, self.model_fn(inputs), name=self.model_name)
 
     @staticmethod
     def model_fn(inputs):
@@ -343,13 +393,8 @@ class RNNLSTM(Model):
             for hidden_size in hidden_size[1:-1]:
                 x = LSTM(hidden_size, return_sequences=True, stateful=True)(x)
             x = LSTM(hidden_size[-1], return_sequences=True, stateful=True)(x)
-        x = Dense(3, activation='linear', name='output1')(x)
+        x = Dense(3, activation='linear', name='fvm')(x)
         return x
-
-    def compile(self, optimizer):
-        self.keras.compile(
-            optimizer=optimizer,
-            loss={'output1': 'mean_squared_error'})
 
 
 class Entrack(Model):
@@ -370,6 +415,8 @@ class Entrack(Model):
 
     def __init__(self, config):
 
+        if 'input_shape' in config:
+            input_shape = config['input_shape']
         if isinstance(config["train_path"], list):
             input_shape = tuple(
                 np.load(config["train_path"][0], allow_pickle=True)["input_shape"])
@@ -377,11 +424,16 @@ class Entrack(Model):
             input_shape = tuple(
                 np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
-        temperature = Temperature(config["temperature"])
+        self.temperature = Temperature(config["temperature"])
 
-        deep_update(config, {"temperature": temperature})
+        deep_update(config, {"temperature": self.temperature})
 
-        inputs = Input(shape=input_shape, name="inputs")
+        if 'batch_size' in config:
+            batch_size = config["batch_size"]
+            inputs = Input(shape=input_shape, batch_size=batch_size,
+                           name="inputs")
+        else:
+            inputs = Input(shape=input_shape, name="inputs")
         shared = self._shared_layers(inputs)
         kappa = self.kappa(shared)
         mu = self.mu(shared)
@@ -391,8 +443,6 @@ class Entrack(Model):
             [self.fvm(mu, kappa), kappa],
             name=self.model_name
         )
-
-        self.temperature = temperature
 
     @staticmethod
     def _shared_layers(inputs):
@@ -447,100 +497,39 @@ class Entrack(Model):
         assert config["temperature"] > 0
 
 
-class Trackifier(Model):
-    """docstring for Trackifier"""
-
-    model_name="Trackifier"
-
-    sample_class = "ClassifierSamples"
-
-    summaries = "FvMSummaries"
-
-    def __init__(self, config):
-
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
-
-        inputs = Input(shape=input_shape, name="inputs")
-
-        self.keras = tf.keras.Model(
-            inputs,
-            self.model_fn(inputs, config["bvec_path"]),
-            name=self.model_name
-        )
-
-    @staticmethod
-    def model_fn(inputs, bvecs_path):
-        """MLP with two output heads for mu and kappa"""
-        x = Dense(2048, activation="relu")(inputs)
-        x = Dense(2048, activation="relu")(x)
-        x = Dense(2048, activation="relu")(x)
-        x = Dense(2048, activation="relu")(x)
-
-        x = Dense(1024, activation="relu")(x)
-        x = Dense(1024, activation="relu")(x)
-        x = Dense(72, activation="softmax", name='output')(x)
-
-        return tfp.layers.DistributionLambda(
-            make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
-                probs=params),
-            convert_to_tensor_fn=tfd.Distribution.mean,
-            name="trackifier"
-        )(x)
-
-    def compile(self, optimizer):
-        self.keras.compile(
-            optimizer=optimizer,
-            loss={'trackifier': 'categorical_crossentropy'},
-            metrics=['accuracy'])
-
-
-class RNNEntrack(Model):
-    """docstring for Entrack"""
+class RNNEntrack(Entrack):
+    """docstring for RNNEntrack"""
     model_name = "RNNEntrack"
-
-    summaries = "EntrackSummaries"
 
     sample_class = "RNNSamples"
 
-    custom_objects = {
-        "mean_fvm_cost": mean_fvm_cost,
-        "mean_neg_fvm_entropy": mean_neg_fvm_entropy,
-        "mean_neg_dot_prod": mean_neg_dot_prod,
-        "kappa_mean": mean,
-        "DistributionLambda": tfp.layers.DistributionLambda
-    }
+    summaries = "TBSummaries"
 
-    def __init__(self, config):
+    @staticmethod
+    @abstractmethod
+    def _shared_layers(inputs):
+        pass
 
-        if 'input_shape' in config:
-            input_shape = config['input_shape']
-        elif isinstance(config["train_path"], list):
-            input_shape = tuple(
-                np.load(config["train_path"][0], allow_pickle=True)[
-                    "input_shape"])
-        else:
-            input_shape = tuple(
-                np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
-        temperature = Temperature(config["temperature"])
+class RNNLSTMEntrack(RNNEntrack):
+    """docstring for RNNLSTMEntrack"""
+    model_name = "RNNLSTMEntrack"
 
-        deep_update(config, {"temperature": temperature})
+    @staticmethod
+    def _shared_layers(inputs):
+        hidden_size = [500, 500]  # Fixed
 
-        batch_size = config["batch_size"]
-        inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
+        x = LSTM(hidden_size[0], return_sequences=True, stateful=True)(inputs)
+        if len(hidden_size) > 1:
+            for hidden_size in hidden_size[1:-1]:
+                x = LSTM(hidden_size, return_sequences=True, stateful=True)(x)
+            x = LSTM(hidden_size[-1], return_sequences=True, stateful=True)(x)
+        return x
 
-        shared = self._shared_layers(inputs)
-        kappa = self.kappa(shared)
-        mu = self.mu(shared)
 
-        self.keras = tf.keras.Model(
-            inputs,
-            [self.fvm(mu, kappa), kappa],
-            name=self.model_name
-        )
-
-        self.temperature = temperature
+class RNNGRUEntrack(RNNEntrack):
+    """docstring for RNNGRUEntrack"""
+    model_name = "RNNGRUEntrack"
 
     @staticmethod
     def _shared_layers(inputs):
@@ -552,47 +541,3 @@ class RNNEntrack(Model):
                 x = GRU(hidden_size, return_sequences=True, stateful=True)(x)
             x = GRU(hidden_size[-1], return_sequences=True, stateful=True)(x)
         return x
-
-    @staticmethod
-    def kappa(x):
-        kappa = Dense(1024, activation="relu")(x)
-        kappa = Dense(1024, activation="relu")(kappa)
-        kappa = Dense(1, activation="relu")(kappa)
-        kappa = Lambda(lambda t: K.squeeze(t, 1) + 0.001, name="kappa")(kappa)
-        return kappa
-
-    @staticmethod
-    def mu(x):
-        mu = Dense(1024, activation="relu")(x)
-        mu = Dense(1024, activation="relu")(mu)
-        mu = Dense(3, activation="linear")(mu)
-        mu = Lambda(lambda t: K.l2_normalize(t, axis=-1), name="mu")(mu)
-        return mu
-
-    @staticmethod
-    def fvm(mu, kappa):
-        fvm = tfp.layers.DistributionLambda(
-            make_distribution_fn=lambda params: FisherVonMises(
-                mean_direction=params[0], concentration=params[1]),
-            convert_to_tensor_fn=tfd.Distribution.mean,
-            name="fvm"
-        )([mu, kappa])
-        return fvm
-
-    def compile(self, optimizer):
-        self.keras.compile(
-            optimizer=optimizer,
-            loss={
-                "fvm": self.custom_objects["mean_fvm_cost"],
-                "kappa": self.custom_objects["mean_neg_fvm_entropy"]
-            },
-            loss_weights={"fvm": 1.0, "kappa": self.temperature},
-            metrics={"fvm": self.custom_objects["mean_neg_dot_prod"],
-                     "kappa": self.custom_objects["kappa_mean"]}
-        )
-
-    @staticmethod
-    def check(config):
-        """Assert model specific parameters"""
-        assert "temperature" in config
-        assert config["temperature"] > 0

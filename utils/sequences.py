@@ -82,12 +82,20 @@ class RNNSamples(Samples):
         self.inputs = [batch_input for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size]
         self.outgoing = [batch_input for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size]
 
+        if len(self.inputs) < 1:
+            raise Exception('Data input is empty. This can happen when '
+                            'number of same length fibers are less than the '
+                            'selected batch size. Maybe reduce the batch size'
+                            'and check again!')
+
         print("Reduced length of input from {0} to {1} to fit the batch size.".
               format(len(self.samples["inputs"]), len(self.inputs)))
 
         # To help find the right fiber for the right batch index
         self.batch_indices = np.cumsum([(fiber.shape[0] // self.batch_size) * fiber.shape[1] for fiber in self.inputs])
         self.reset_batches = self._get_reset_batches()
+
+
 
     def __len__(self):
         return self.batch_indices[-1]
