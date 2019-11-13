@@ -14,8 +14,14 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
 
     trk_dir = os.path.join(data_dir, "bundles")
 
-    anat_path = os.path.join(data_dir, "masks", "wm.nii.gz")
-    resized_path = os.path.join(data_dir, "masks", "wm_125.nii.gz")
+    if source in ["wm", "trk"]:
+        anat_path = os.path.join(data_dir, "masks", "wm.nii.gz")
+        resized_path = os.path.join(data_dir, "masks", "wm_125.nii.gz")
+    elif source == "brain":
+        anat_path = os.path.join("subjects", "ismrm_gt", "dwi_brain_mask.nii.gz")
+        resized_path = os.path.join("subjects", "ismrm_gt",
+            "dwi_brain_mask_125.nii.gz")  
+
     sp.call(["mrresize", "-voxel", "1.25", anat_path, resized_path])
 
     if source == "trk":
@@ -58,7 +64,7 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
             else:
                 p = np.ones(n_seeds) / n_seeds
 
-    elif source == "wm":
+    elif source in ["brain","wm"]:
 
         weighted = False
 
@@ -86,11 +92,12 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
         keep_n = int(keep * n_seeds)
         print("Subsampling from {} seeds to {} seeds".format(n_seeds, keep_n))
         np.random.seed(42)
-        seeds = np.random.choice(
-            seeds,
+        keep_idx = np.random.choice(
+            len(seeds),
             size=keep_n,
             replace=False,
             p=p)
+        seeds = seeds[keep_idx]
 
     tractogram = Tractogram(
             streamlines=ArraySequence(seeds),
@@ -123,7 +130,7 @@ if __name__ == '__main__':
         default="scoring/scoring_data")
 
     parser.add_argument("--source", default="wm", type=str,
-        choices=["wm", "trk"], 
+        choices=["wm", "trk", "brain"], 
         help="Source for seeds: White Matter (wm) or Tracts (trk).")
 
     parser.add_argument("--keep", default=1.0, type=float, 
