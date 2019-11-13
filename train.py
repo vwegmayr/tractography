@@ -19,10 +19,14 @@ def train(config=None, gpu_queue=None):
     except Exception as e:
         print(str(e))
 
+    day, hour = timestamp(separate=True)
+
     out_dir = os.path.join("models",
                            config["model_name"],
                            config.get("model_type", ""),
-                           timestamp())
+                           day,
+                           hour)
+    
     os.makedirs(out_dir, exist_ok=True)
     configs.deep_update(config, {"out_dir": out_dir})
     

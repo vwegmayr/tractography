@@ -45,9 +45,12 @@ def maybe_get_a_gpu():
             order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
 
 
-def timestamp():
-    return datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-
+def timestamp(separate=False):
+    tstamp = datetime.datetime.now().strftime("%Y-%m-%d=%H:%M:%S")
+    if separate:
+        return tstamp.split("=")
+    else:
+        return tstamp
 
 def parse_callbacks(config):
     callbacks = []
