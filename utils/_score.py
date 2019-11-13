@@ -34,9 +34,9 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
         cmd = source_cmd + cmd
 
     if blocking:
-        out = subprocess.run(cmd, shell=True, capture_output=True)
+        out = subprocess.run(['/bin/bash', '-c', cmd])
     else:
-        out = subprocess.Popen(cmd, shell=True)
+        out = subprocess.Popen(['/bin/bash', '-c', cmd])
 
     print(out.stdin)
     print(out.stderr)
