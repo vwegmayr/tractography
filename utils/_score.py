@@ -1,12 +1,8 @@
 import os
-import sys
 import subprocess
 import argparse
 
-if sys.version_info >= (3, 5):
-    from utils.trim import trim
-else:
-    from trim import trim
+from utils.trim import trim
 
 
 def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
