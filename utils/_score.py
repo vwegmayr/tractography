@@ -10,25 +10,14 @@ else:
 
 
 def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
-    blocking=True):
-
-    env = os.environ.copy()
-    if 'CONDA_PREFIX' in env:
-        env_name = str(env["CONDA_DEFAULT_ENV"])
-        env["CONDA_DEFAULT_ENV"] = "scoring"
-        env["CONDA_PREFIX"] = env["CONDA_PREFIX"].replace(env_name, "scoring")
-        env["PATH"] = env["PATH"].replace(
-            os.path.join("envs", env_name), os.path.join("envs", "scoring")
-            )
-        env["_"] = env["_"].replace(
-            os.path.join("envs", env_name), os.path.join("envs", "scoring")
-            )
+    blocking=True, python2=None):
 
     if not no_trim:
         trk_path = trim(trk_path, min_length, max_length)
 
     if out_dir is None:
         out_dir = os.getcwd()
+    os.makedirs(out_dir, exist_ok=True)
 
     cmd = [
         "python", "scoring/scripts/score_tractogram.py", trk_path,
@@ -40,13 +29,18 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
 
     cmd = " ".join(cmd)
 
-    if sys.version_info >= (3, 5):
-        if blocking:
-            return subprocess.run(cmd, env=env, shell=True)
-        else:
-            return subprocess.Popen(cmd, env=env, shell=True)
+    if python2:
+        source_cmd = "source '{}/bin/activate' && ".format(python2)
+        cmd = source_cmd + cmd
+
+    if blocking:
+        out = subprocess.run(cmd, shell=True, capture_output=True)
     else:
-        subprocess.call(cmd, shell=True)
+        out = subprocess.Popen(cmd, shell=True)
+
+    print(out.stdin)
+    print(out.stderr)
+    return out
 
 
 if __name__ == '__main__':
@@ -57,6 +51,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--no_trim", action="store_true")
 
+    parser.add_argument("--python2", type=str)
+
     args = parser.parse_args()
 
-    score(args.trk_path, no_trim=args.no_trim)
+    score(args.trk_path, no_trim=args.no_trim, python2=args.python2)

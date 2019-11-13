@@ -210,8 +210,10 @@ def run_inference(config=None, gpu_queue=None):
     if config["score"]:
         score(
             fiber_path,
+            out_dir=os.path.join(out_dir, "scorings"),
             min_length=config["min_length"],
-            max_length=config["max_length"]
+            max_length=config["max_length"],
+            python2=config['python2']
             )
 
     return tractogram
