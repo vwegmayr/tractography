@@ -67,8 +67,9 @@ if __name__ == '__main__':
 
     if args.action in ["training", "inference"]:
 
-        if args.action == "inference" and "*" in config["model_path"]:
-            assert "--model_path" not in more_args
+        if (args.action == "inference" and
+            "*" in config["model_path"] and
+            "--model_path" not in more_args):
             more_args += glob_to_more_args(config["model_path"], "model_path")
 
         configurations = make_configs_from(config, more_args)
