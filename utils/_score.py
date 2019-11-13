@@ -31,7 +31,7 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
 
     if python2:
         source_cmd = "source '{}' && " if '/' in python2 \
-            else "source activate '{}'".format(python2)
+            else "source activate '{}' &&".format(python2)
 
         cmd = source_cmd + cmd
 
