@@ -297,7 +297,7 @@ def generate_samples(dwi_path,
 
     input_shape = ((1, samples["inputs"][0].shape[-1]) if model == 'RNN'
         else samples["inputs"].shape[1:])
-    np.savez_compressed(
+    np.savez(
         sample_path,
         input_shape=input_shape,
         n_samples=n_samples,
