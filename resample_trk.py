@@ -5,16 +5,12 @@ rn.seed(12345)
 from numpy.random import seed
 seed(42)
 
-import yaml
 import argparse
 
 import numpy as np
-import matplotlib.pyplot as plt
 import nibabel as nib
 
 from scipy import interpolate
-from mpl_toolkits.mplot3d import Axes3D
-from hashlib import md5
 from nibabel.streamlines.tractogram import Tractogram, PerArraySequenceDict
 from nibabel.streamlines.trk import TrkFile
 from nibabel.streamlines.array_sequence import ArraySequence
@@ -56,7 +52,6 @@ def fiber_geometry(fiber, npts, smoothing):
     # tau /= np.linalg.norm(r1xr2, axis=1, keepdims=True)**2 # torsion
 
     return r, t, k, npts
-
 
 
 def resample(trk_path, npts, smoothing, include_curvature, out_dir, save=True):

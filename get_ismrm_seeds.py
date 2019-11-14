@@ -121,6 +121,7 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
     for file in glob.glob(os.path.join(trk_dir, "*.trk")):
         os.remove(file)
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(

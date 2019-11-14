@@ -9,25 +9,25 @@ from time import time
 from tensorflow.keras.models import load_model
 
 from nibabel.streamlines.trk import TrkFile
-from nibabel.streamlines.array_sequence import ArraySequence
-from nibabel.streamlines.tractogram import (Tractogram, PerArraySequenceDict,
-    PerArrayDict)
+from nibabel.streamlines.tractogram import (Tractogram, PerArraySequenceDict)
 
 from models import MODELS
 from utils.training import setup_env, maybe_get_a_gpu, timestamp
 from utils.prediction import get_blocksize
 from utils.config import load
 
-from generate_samples import interpolate
-
 import configs
+
 
 @setup_env
 def mark(config, gpu_queue=None):
 
-    gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
-    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
-
+    gpu_idx = -1
+    try:
+        gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
+    except Exception as e:
+        print(str(e))
     print("Loading DWI data ...")
 
     dwi_img = nib.load(config["dwi_path"])
@@ -53,7 +53,7 @@ def mark(config, gpu_queue=None):
 
     print("Loading fibers ...")
 
-    trk_file = nib.streamlines.load(config["fiber_path"])
+    trk_file = nib.streamlines.load(config["trk_path"])
     tractogram = trk_file.tractogram
     streamlines = tractogram.streamlines
 
@@ -206,6 +206,7 @@ def mark(config, gpu_queue=None):
     config["out_dir"] = out_dir
 
     configs.save(config)
+
 
 if __name__ == '__main__':
 

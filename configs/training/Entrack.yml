@@ -3,7 +3,7 @@ model_type: conditional
 
 action: training
 
-temperature: 0.1
+temperature: 0.03
 
 optimizer: Adam
 opt_params: 
@@ -11,23 +11,23 @@ opt_params:
   clipnorm: 10.0
 
 epochs: 100000
-batch_size: 256
+batch_size: 512
 shuffle: True
 
 callbacks:
   RunningWindowLogger:
     metrics: ["kappa_mean", "fvm_mean_neg_dot_prod"]
-    window_size: 64
+    window_size: 32
   AutomaticTemperatureSchedule:
     temperature: None
-    T_stop: 0.001
-    decay: 0.99
+    T_stop: 0.0005
+    decay: 0.98
     tol: 0.01
     min_lr: 0.0002
     n_checkpoints: 20
     out_dir: None
   EntrackSummaries:
-    update_freq: 512
+    update_freq: 50000
     activations_freq: "epoch"
     scatter_freq: "epoch"
     out_dir: None
@@ -36,12 +36,12 @@ callbacks:
 out_dir: None
 
 # W0001
-train_path:
-  - subjects/601127/samples/2019-11-11-19:36:12/samples.npz
-  - subjects/702133/samples/2019-11-11-19:35:43/samples.npz
-  - subjects/802844/samples/2019-11-11-19:35:15/samples.npz
-  - subjects/992774/samples/2019-11-11-10:39:06/samples.npz
-eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+#train_path:
+#  - subjects/601127/samples/2019-11-11-19:36:12/samples.npz
+#  - subjects/702133/samples/2019-11-11-19:35:43/samples.npz
+#  - subjects/802844/samples/2019-11-11-19:35:15/samples.npz
+#  - subjects/992774/samples/2019-11-11-10:39:06/samples.npz
+#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
 
 
 # W0002
@@ -57,7 +57,7 @@ eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
 #train_path:
 #  - subjects/601127/samples/2019-11-11-19:51:04/samples.npz
 #  - subjects/702133/samples/2019-11-11-19:49:35/samples.npz
-#  - subjects/802844/samples/2019-11-11-19:50:16/samples.npz                                            │Saving subjects/702133/samples/2019-11-11-19:49:35/samples.npz
+#  - subjects/802844/samples/2019-11-11-19:50:16/samples.npz
 #  - subjects/992774/samples/2019-11-11-19:45:29/samples.npz
 #eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
 
@@ -89,9 +89,10 @@ eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
 
 
 # W0050
-#train_path:
-#  - subjects/702133/samples/2019-11-11-14:32:55/samples.npz
-#  - subjects/802844/samples/2019-11-11-14:43:39/samples.npz
-#  - subjects/601127/samples/2019-11-11-14:29:24/samples.npz
-#  - subjects/992774/samples/2019-11-11-14:27:38/samples.npz
-#eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
+train_path:
+  - subjects/599671/samples/2019-11-14-15:45:23/samples.npz
+  - subjects/702133/samples/2019-11-11-14:32:55/samples.npz
+  - subjects/802844/samples/2019-11-11-14:43:39/samples.npz
+  - subjects/601127/samples/2019-11-11-14:29:24/samples.npz
+  - subjects/992774/samples/2019-11-11-14:27:38/samples.npz
+eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
