@@ -24,8 +24,8 @@ from configs import save
 
 
 @setup_env
-def agreement(dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
-    wm_path, model_path, matching_thresh, cluster_thresh, nresample):
+def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
+    wm_path, matching_thresh, cluster_thresh, centroid_size):
 
     print("Load data ...")
 
@@ -71,7 +71,7 @@ def agreement(dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     print("Clustering streamlines ...")
 
-    feature = ResampleFeature(nb_points=nresample)
+    feature = ResampleFeature(nb_points=centroid_size)
 
     qb = QuickBundles(
         threshold=cluster_thresh,
@@ -287,19 +287,19 @@ if __name__ == '__main__':
     parser.add_argument("--cthresh", help="Bundle clustering threshold",
         type=float, default=20., dest="cluster_thresh")
 
-    parser.add_argument("--nresample", help="Length of fiber centroids",
+    parser.add_argument("--centroid_size", help="Length of fiber centroids",
         type=int, default=200)
 
     args = parser.parse_args()
 
     agreement(
+        args.model_path,
         args.dwi_path_1,
         args.trk_path_1,
         args.dwi_path_2,
         args.trk_path_2,
         args.wm_path,
-        args.model_path,
         args.matching_thresh,
         args.cluster_thresh,
-        args.nresample
+        args.centroid_size
     )
