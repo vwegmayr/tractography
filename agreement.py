@@ -15,7 +15,7 @@ from dipy.tracking._utils import _mapping_to_voxel, _to_voxel_coordinates
 from models.model_classes import FisherVonMises
 from models import load_model
 
-#from resample import resample
+from resample_trk import add_tangent 
 from utils.config import load
 from utils.training import setup_env, maybe_get_a_gpu
 from utils.prediction import get_blocksize
@@ -49,10 +49,14 @@ def agreement(dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     trk_file_1 = nib.streamlines.load(trk_path_1)
     tractogram_1 = trk_file_1.tractogram
+    if "t" not in tractogram_1.data_per_point:
+        tractogram_1 = add_tangent(tractogram_1)
     streamlines_1 = tractogram_1.streamlines
 
     trk_file_2 = nib.streamlines.load(trk_path_2)
     tractogram_2 = trk_file_2.tractogram
+    if "t" not in tractogram_2.data_per_point:
+        tractogram_2 = add_tangent(tractogram_2)
     streamlines_2 = tractogram_2.streamlines
     
     ############################################################################
@@ -145,9 +149,6 @@ def agreement(dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         ii,jj,kk = np.unravel_index(idx, (block_size, block_size, block_size))
         d_1[:, ii, jj, kk, :] = dwi_1[i,j,k, :]
         d_2[:, ii, jj, kk, :] = dwi_2[i,j,k, :]
-
-    assert d_1.shape == (
-        n_segments, block_size, block_size, block_size, dwi_1.shape[-1])
 
     d_1 = d_1.reshape(-1, dwi_1.shape[-1] * block_size**3)
     d_2 = d_2.reshape(-1, dwi_2.shape[-1] * block_size**3)
