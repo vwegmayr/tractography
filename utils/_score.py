@@ -40,8 +40,6 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
     else:
         out = subprocess.Popen(['/bin/bash', '-c', cmd])
 
-    print(out.stdin)
-    print(out.stderr)
     return out
 
 
