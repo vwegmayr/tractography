@@ -59,7 +59,7 @@ def fiber_geometry(fiber, npts, smoothing):
 
 
 
-def resample(trk_path, npts, smoothing, include_curvature, out_dir):
+def resample(trk_path, npts, smoothing, include_curvature, out_dir, save=True):
     
     trk_file = nib.streamlines.load(trk_path)
     fibers = trk_file.tractogram.streamlines
@@ -138,16 +138,18 @@ def resample(trk_path, npts, smoothing, include_curvature, out_dir):
         affine_to_rasmm=np.eye(4) # Fiber coordinates are already in rasmm space!
     )
     
-    if out_dir is None:
-        out_dir = os.path.dirname(trk_path)
-    
-    basename = os.path.basename(trk_path).split(".")[0]
-    save_path = os.path.join(out_dir, "{}_s={}_n={}.trk".format(
-        basename, smoothing, npts))
+    if save:
 
-    os.makedirs(out_dir, exist_ok=True)
-    print("Saving {}".format(save_path))
-    TrkFile(tractogram, trk_file.header).save(save_path)
+        if out_dir is None:
+            out_dir = os.path.dirname(trk_path)
+        
+        basename = os.path.basename(trk_path).split(".")[0]
+        save_path = os.path.join(out_dir, "{}_s={}_n={}.trk".format(
+            basename, smoothing, npts))
+
+        os.makedirs(out_dir, exist_ok=True)
+        print("Saving {}".format(save_path))
+        TrkFile(tractogram, trk_file.header).save(save_path)
     
     return tractogram
 
