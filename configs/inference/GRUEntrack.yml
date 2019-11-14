@@ -1,0 +1,17 @@
+model_name: RNNGRUEntrack
+
+model_path: models/RNNGRUEntrack/conditional/2019-11-13-15:51:11/final_model.h5  # RNN
+dwi_path: subjects/ismrm_gt/fod_norm_125.nii.gz
+prior_path: subjects/ismrm_gt/tensor_V1_125.nii.gz
+seed_path: scoring/scoring_data/seeds/seeds_from_wm_100.trk
+term_path: subjects/ismrm_gt/wm_mask_125.nii.gz
+
+thresh: 0.1
+
+step_size: 0.25
+max_steps: 800
+batch_size: 20000
+score: True
+predict_fn: mean
+python2: /local/home/abahrein/.envs/scoring/bin/activate
+out_dir:

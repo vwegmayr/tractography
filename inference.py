@@ -17,8 +17,6 @@ from nibabel.streamlines.tractogram import Tractogram
 from time import time
 
 from models import MODELS
-from models import RNNGRU as GRUModel
-from models import RNNLSTM as LSTMModel
 
 from utils.config import load
 from utils.prediction import Prior, Terminator, get_blocksize
@@ -57,10 +55,10 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Loading Models...") #################################################
 
-    config_path = os.path.join(
+    train_config_path = os.path.join(
         os.path.dirname(config['model_path']), "config.yml")
 
-    model_name = load(config_path, "model_name")
+    model_name = load(train_config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(config['model_path'],
@@ -197,6 +195,8 @@ def run_inference(config=None, gpu_queue=None):
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
+    config['training_config'] = load(train_config_path)
+
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
@@ -222,7 +222,7 @@ def run_inference(config=None, gpu_queue=None):
 
 
 def infere_batch_seed(xyz, prior, terminator, model,
-                      dwi, dwi_affi, max_steps, step_size):
+                      dwi, dwi_affi, max_steps, step_size, model_name=''):
 
     n_seeds = len(xyz)
     fiber_idx = np.hstack([
@@ -272,8 +272,19 @@ def infere_batch_seed(xyz, prior, terminator, model,
         else:
             inputs = np.hstack([vout, d, dnorm])
 
-        vout = model.predict(inputs[:, np.newaxis, :]).squeeze()
+        outputs = model(inputs[:, np.newaxis, :])
 
+        if 'Entrack' in model_name:
+            if isinstance(outputs, list):
+                outputs = outputs[0]
+
+            if config['predict_fn'] == "mean":
+                vout = outputs.mean_direction.numpy()
+            elif config['predict_fn'] == "sample":
+                vout = outputs.sample().numpy()
+        else:
+            vout = outputs.squeeze()
+        vout = np.squeeze(vout)
         rout = xyz[:, -1, :3] + step_size * vout
         rout = np.hstack([rout, np.ones((n_seeds, 1))]).reshape(-1, 1, 4)
 
@@ -345,22 +356,23 @@ def run_rnn_inference(config, gpu_queue=None):
 
     print("Loading Models...")  #################################################
 
-    config_path = os.path.join(
+    train_config_path = os.path.join(
         os.path.dirname(config['model_path']), "config.yml")
 
-    with open(config_path, "r") as config_file:
+    with open(train_config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
 
     if hasattr(MODELS[model_name], "custom_objects"):
         trained_model = load_model(config['model_path'],
-                           custom_objects=MODELS[model_name].custom_objects)
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
     else:
-        trained_model = load_model(config['model_path'])
+        trained_model = load_model(config['model_path'], compile=False)
 
-    modelClass = GRUModel if model_name == 'RNNGRU' else LSTMModel
     model_config = {'batch_size': batch_size,
-                    'input_shape':  trained_model.input_shape[1:]}
-    prediction_model = modelClass(model_config).keras
+                    'input_shape':  trained_model.input_shape[1:],
+                    'temperature': 0.04}
+    prediction_model = MODELS[model_name](model_config).keras
     prediction_model.set_weights(trained_model.get_weights())
 
     terminator = Terminator(config['term_path'], config['thresh'])
@@ -389,7 +401,7 @@ def run_rnn_inference(config, gpu_queue=None):
         if i == batch_size//2 * (n_seeds // (batch_size // 2)):
             last_batch_size = (n_seeds - i) * 2
             model_config['batch_size'] = last_batch_size
-            prediction_model = modelClass(model_config).keras
+            prediction_model = MODELS[model_name](model_config).keras
             prediction_model.set_weights(trained_model.get_weights())
 
         prediction_model.reset_states()
@@ -397,7 +409,7 @@ def run_rnn_inference(config, gpu_queue=None):
             i // (batch_size // 2), xyz_batch.shape))
         batch_fibers = infere_batch_seed(xyz_batch, prior, terminator,
             prediction_model, dwi, dwi_affi, config['max_steps'],
-                                         config['step_size'])
+                                         config['step_size'], model_name=model_name)
         fibers[i:i+batch_size//2] = batch_fibers
 
     # Save Result
@@ -427,10 +439,19 @@ def run_rnn_inference(config, gpu_queue=None):
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
     config_path = os.path.join(out_dir, "config.yml")
+    config['training_config'] = load(train_config_path)
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
         yaml.dump(config, file, default_flow_style=False)
 
+    if config["score"]:
+        score(
+            fiber_path,
+            out_dir=os.path.join(out_dir, "scorings"),
+            min_length=config["min_length"],
+            max_length=config["max_length"],
+            python2=config['python2']
+            )
     return tractogram
 
 

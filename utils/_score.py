@@ -1,12 +1,8 @@
 import os
-import sys
 import subprocess
 import argparse
 
-if sys.version_info >= (3, 5):
-    from utils.trim import trim
-else:
-    from trim import trim
+from utils.trim import trim
 
 
 def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
@@ -31,7 +27,8 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
 
     if python2:
         source_cmd = "source '{}' && " if '/' in python2 \
-            else "source activate '{}' &&".format(python2)
+            else "source activate '{}' &&"
+        source_cmd = source_cmd.format(python2)
 
         cmd = source_cmd + cmd
 
@@ -39,6 +36,11 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
         out = subprocess.run(['/bin/bash', '-c', cmd])
     else:
         out = subprocess.Popen(['/bin/bash', '-c', cmd])
+
+    if hasattr(out, "stdin"):
+        print(out.stdin)
+    if hasattr(out, "stderr"):
+        print(out.stderr)
 
     return out
 

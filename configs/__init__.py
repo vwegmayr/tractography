@@ -1,16 +1,7 @@
 import os
-import yaml
 
 from models import MODELS
-
-from tensorflow.keras.backend import get_value
-
-from utils.training import Temperature
-
 from utils.config import *
-
-from pprint import pprint
-
 from utils.filelock import filelock
 
 
