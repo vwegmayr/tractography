@@ -118,6 +118,12 @@ def sanitize(config):
             elif hasattr(v, "numpy"):
                 config[k] = float(v.numpy())
 
+            elif hasattr(v, "dtype"):
+                if "int" in v.dtype.name:
+                    config[k] = int(v)
+                elif "float" in v.dtype.name:
+                    config[k] = float(v)
+
             elif isinstance(v, np.ndarray):
                 config[k] = None
 

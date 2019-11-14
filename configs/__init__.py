@@ -55,11 +55,15 @@ def check(config):
     return config
 
 
-def save(config):
+def save(config, name=None, out_dir=None):
 
     sanitize(config)
 
-    config_path = os.path.join(config["out_dir"], "config.yml")
+    config_name = "config.yml" if name is None else name
+
+    out_dir = config["out_dir"] if out_dir is None else out_dir
+    
+    config_path = os.path.join(out_dir, config_name)
     print("\nSaving {}".format(config_path))
     with filelock.FileLock("config_path"):   
         with open(config_path, "w") as file:
