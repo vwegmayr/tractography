@@ -441,6 +441,14 @@ def run_rnn_inference(config, gpu_queue=None):
     with open(config_path, "w") as file:
         yaml.dump(config, file, default_flow_style=False)
 
+    if config["score"]:
+        score(
+            fiber_path,
+            out_dir=os.path.join(out_dir, "scorings"),
+            min_length=config["min_length"],
+            max_length=config["max_length"],
+            python2=config['python2']
+            )
     return tractogram
 
 
