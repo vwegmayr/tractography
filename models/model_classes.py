@@ -96,6 +96,7 @@ class FisherVonMises(tfd.VonMisesFisher):
         return W[..., tf.newaxis] * self.mean_direction
 
     def _log_normalization(self):
+        # returns log(Z), or equivalently -log(c)
         kappa = self.concentration
         expk2 = K.exp(- 2 * kappa)
         return np.log(2*np.pi) + kappa + tf.math.log1p(- expk2) - K.log(kappa)

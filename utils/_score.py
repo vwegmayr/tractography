@@ -41,6 +41,7 @@ def score(trk_path, out_dir=None, min_length=30, max_length=200, no_trim=False,
         print(out.stdin)
     if hasattr(out, "stderr"):
         print(out.stderr)
+
     return out
 
 
