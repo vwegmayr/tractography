@@ -1,0 +1,4 @@
+trk_path: subjects/ismrm_basic/marked_fibers/2019-11-10-17:12:54/marked.trk
+filter_name: log_prob_sum
+percentile: 10 # percentile
+apply_k: False
