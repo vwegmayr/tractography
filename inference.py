@@ -17,8 +17,6 @@ from nibabel.streamlines.tractogram import Tractogram
 from time import time
 
 from models import MODELS
-from models import RNNGRU as GRUModel
-from models import RNNLSTM as LSTMModel
 
 from utils.config import load
 from utils.prediction import Prior, Terminator, get_blocksize
@@ -57,10 +55,10 @@ def run_inference(config=None, gpu_queue=None):
 
     print("Loading Models...") #################################################
 
-    config_path = os.path.join(
+    train_config_path = os.path.join(
         os.path.dirname(config['model_path']), "config.yml")
 
-    model_name = load(config_path, "model_name")
+    model_name = load(train_config_path, "model_name")
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(config['model_path'],
@@ -201,6 +199,8 @@ def run_inference(config=None, gpu_queue=None):
     fiber_path = os.path.join(out_dir, timestamp + ".trk")
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
+
+    config['training_config'] = load(train_config_path)
 
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
@@ -354,10 +354,10 @@ def run_rnn_inference(config, gpu_queue=None):
 
     print("Loading Models...")  #################################################
 
-    config_path = os.path.join(
+    train_config_path = os.path.join(
         os.path.dirname(config['model_path']), "config.yml")
 
-    with open(config_path, "r") as config_file:
+    with open(train_config_path, "r") as config_file:
         model_name = yaml.load(config_file)["model_name"]
 
     if hasattr(MODELS[model_name], "custom_objects"):
@@ -437,6 +437,7 @@ def run_rnn_inference(config, gpu_queue=None):
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
     config_path = os.path.join(out_dir, "config.yml")
+    config['training_config'] = load(train_config_path)
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
         yaml.dump(config, file, default_flow_style=False)

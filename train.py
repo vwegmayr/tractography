@@ -55,6 +55,9 @@ def train(config=None, gpu_queue=None):
 
         model.compile(optimizer)
 
+        samples_config = os.path.join(os.path.dirname(config['train_path']), 'config.yml')
+        samples_config = configs.load(samples_config)
+        config['input_sampels_config'] = samples_config
         configs.save(config)
 
         print("\nStart training...")
