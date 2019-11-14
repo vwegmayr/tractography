@@ -175,11 +175,6 @@ def run_inference(config=None, gpu_queue=None):
     # Exclude unfinished fibers (finished = both ends finished)
     fibers = [fibers[gidx] for gidx in range(len(fibers)) if gidx not in fiber_idx]
 
-    # Return GPU
-
-    K.clear_session()
-    if gpu_queue is not None:
-        gpu_queue.put(gpu_idx)
 
     # Save Result
 
@@ -213,8 +208,15 @@ def run_inference(config=None, gpu_queue=None):
             out_dir=os.path.join(out_dir, "scorings"),
             min_length=config["min_length"],
             max_length=config["max_length"],
-            python2=config['python2']
+            python2=config['python2'],
+            blocking=False
             )
+        
+    # Return GPU
+
+    K.clear_session()
+    if gpu_queue is not None:
+        gpu_queue.put(gpu_idx)
 
     return tractogram
 
