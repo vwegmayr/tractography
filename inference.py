@@ -90,20 +90,15 @@ def run_inference(config=None, gpu_queue=None):
 
     block_size = get_blocksize(model, dwi.shape[-1])
 
-    d = np.zeros([n_seeds, block_size, block_size, block_size, dwi.shape[-1]])
-    dnorm = np.zeros([n_seeds, 1])
-    vout = np.zeros([n_seeds, 3])
     for step in range(config['max_steps']):
         t0 = time()
 
         # Get coords of latest segement for each fiber
         ijk = xyz2ijk(xyz[:,-1,:], snap=True)
-
         n_ongoing = len(ijk)
-
         i,j,k, _ = ijk.T
 
-        d = d.reshape(-1, block_size, block_size, block_size, dwi.shape[-1])
+        d = np.zeros([n_ongoing, block_size, block_size, block_size, dwi.shape[-1]])
         for idx in range(block_size**3):
             ii,jj,kk = np.unravel_index(idx, (block_size, block_size, block_size))
             d[:, ii, jj, kk, :] = dwi[i+ii-1, j+jj-1, k+kk-1, :]
@@ -113,14 +108,13 @@ def run_inference(config=None, gpu_queue=None):
         d /= dnorm
 
         if step == 0:
-            inputs = np.hstack([prior(xyz[:, 0, :]),
-                                d[:n_ongoing], dnorm[:n_ongoing]])
+            inputs = np.hstack([prior(xyz[:, 0, :]), d, dnorm])
         else:
-            inputs = np.hstack([vout[:n_ongoing],
-                                d[:n_ongoing], dnorm[:n_ongoing]])
+            inputs = np.hstack([vout, d, dnorm])
 
-        chunk = 2**15  # 32768
+        chunk = 2**16  # 32768
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
+        vout = np.zeros([n_ongoing, 3])
         for c in range(n_chunks):
 
             outputs = model(inputs[c * chunk : (c + 1) * chunk])
