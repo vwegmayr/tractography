@@ -169,7 +169,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     )
     
     agreement = {"temperature": temperature}
-    agreement["value"] = (asum + n_segments * np.log(4*np.pi)) / n_wm
+    agreement["value"] = asum / n_wm
     agreement["min"] = amin
     agreement["mean"] = amean
     agreement["max"] = amax
@@ -219,6 +219,8 @@ def agreement_for(model, inputs1, inputs2):
             fvm_log_agreement(fvm_pred_1, fvm_pred_2)
         )
 
+    all_fvm_log_agreements = np.maximum(0, all_fvm_log_agreements)
+
     return (
         all_fvm_log_agreements.sum(),
         all_fvm_log_agreements.min(),
@@ -257,6 +259,7 @@ def fvm_log_agreement(fvm1, fvm2):
             axis=1)
     )
     return (
+        np.log(4*np.pi) + 
         fvm12._log_normalization()
         - fvm1._log_normalization()
         - fvm2._log_normalization()
