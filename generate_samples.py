@@ -292,16 +292,28 @@ def generate_samples(dwi_path,
     out_dir = os.path.join(out_dir, timestamp)
     os.makedirs(out_dir, exist_ok=True)
 
-    sample_path = os.path.join(out_dir, "samples.npz")
-    print("\nSaving {}".format(sample_path))
-
     input_shape = ((1, samples["inputs"][0].shape[-1]) if model == 'RNN'
-        else samples["inputs"].shape[1:])
-    np.savez(
-        sample_path,
-        input_shape=input_shape,
-        n_samples=n_samples,
-        **samples)
+                   else samples["inputs"].shape[1:])
+    if model == 'RNN':
+        sample_path = os.path.join(out_dir, "samples-{0}.npz")
+        for i in range(len(samples['inputs'])):
+            print("Saving {}".format(sample_path.format(i)))
+            sample_tosave = {'inputs': samples['inputs'][i],
+                             'outgoing': samples['outgoing'][i],
+                             'isterminal': samples['isterminal'][i]}
+            np.savez(
+                sample_path.format(i),
+                input_shape=input_shape,
+                n_samples=n_samples,
+                **sample_tosave)
+    else:
+        sample_path = os.path.join(out_dir, "samples.npz")
+        print("\nSaving {}".format(sample_path))
+        np.savez(
+            sample_path,
+            input_shape=input_shape,
+            n_samples=n_samples,
+            **samples)
     
     config_path = os.path.join(out_dir, "config.yml")
     config=dict(

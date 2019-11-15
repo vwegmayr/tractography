@@ -1,3 +1,5 @@
+from os import listdir
+from os.path import isfile, join, isdir
 import numpy as np
 
 from tensorflow.keras.utils import Sequence
@@ -31,6 +33,15 @@ class Samples(Sequence):
                 self.samples[key] = np.vstack(self.samples[key])
                 if self.samples[key].shape[0] == self.n_samples:
                     self.samples[key] = self.samples[key][perm]
+        elif isdir(config['sample_path']):
+            only_samples = [join(config['sample_path'], f) for f in listdir(config['sample_path'])
+                            if isfile(join(config['sample_path'], f)) and 'samples' in f]
+            self.samples = {'inputs': [], 'outgoing':[], 'isterminal':[]}
+            for sample in only_samples:
+                sample_i = np.load(sample, allow_pickle=True)
+                self.samples['inputs'].append(sample_i['inputs'])
+                self.samples['outgoing'].append(sample_i['outgoing'])
+                self.samples['isterminal'].append(sample_i['isterminal'])
         else:
             self.samples = np.load(config['sample_path'], allow_pickle=True)  # lazy loading
             self.n_samples = self.samples["n_samples"]

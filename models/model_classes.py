@@ -338,7 +338,7 @@ class RNNModel(Model):
             input_shape = config['input_shape']
         else:
             input_shape = tuple(
-                np.load(config["train_path"], allow_pickle=True)["input_shape"])
+                np.load(config["train_path"] + 'samples-0.npz', allow_pickle=True)["input_shape"])
 
         batch_size = config["batch_size"]
         inputs = Input(shape=input_shape, batch_size=batch_size, name="inputs")
