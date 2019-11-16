@@ -115,6 +115,9 @@ def sanitize(config):
             if isinstance(v, dict):
                 sanitize(v)
 
+            elif isinstance(v, np.ndarray):
+                config[k] = None
+
             elif hasattr(v, "numpy"):
                 config[k] = float(v.numpy())
 
@@ -123,9 +126,6 @@ def sanitize(config):
                     config[k] = int(v)
                 elif "float" in v.dtype.name:
                     config[k] = float(v)
-
-            elif isinstance(v, np.ndarray):
-                config[k] = None
 
             elif not (isinstance(v, (str, list)) or is_number(v)):
                 config[k] = None
