@@ -90,35 +90,31 @@ def run_inference(config=None, gpu_queue=None):
 
     block_size = get_blocksize(model, dwi.shape[-1])
 
-    d = np.zeros([n_seeds, dwi.shape[-1] * block_size**3])
-    dnorm = np.zeros([n_seeds, 1])
-    vout = np.zeros([n_seeds, 3])
-    for i in range(config['max_steps']):
+    for step in range(config['max_steps']):
         t0 = time()
 
         # Get coords of latest segement for each fiber
         ijk = xyz2ijk(xyz[:,-1,:], snap=True)
-
         n_ongoing = len(ijk)
+        i,j,k, _ = ijk.T
 
-        for ii, idx in enumerate(ijk):
-            d[ii] = dwi[
-                    idx[0]-(block_size // 2): idx[0]+(block_size // 2)+1,
-                    idx[1]-(block_size // 2): idx[1]+(block_size // 2)+1,
-                    idx[2]-(block_size // 2): idx[2]+(block_size // 2)+1,
-                    :].flatten()  # returns copy
-            dnorm[ii] = np.linalg.norm(d[ii])
-            d[ii] /= (dnorm[ii] + 10**-2)
+        d = np.zeros([n_ongoing, block_size, block_size, block_size, dwi.shape[-1]])
+        for idx in range(block_size**3):
+            ii,jj,kk = np.unravel_index(idx, (block_size, block_size, block_size))
+            d[:, ii, jj, kk, :] = dwi[i+ii-1, j+jj-1, k+kk-1, :]
+        d = d.reshape(-1, dwi.shape[-1] * block_size**3)
 
-        if i == 0:
-            inputs = np.hstack([prior(xyz[:, 0, :]),
-                                d[:n_ongoing], dnorm[:n_ongoing]])
+        dnorm = np.linalg.norm(d, axis=1, keepdims=True) + 10**-2
+        d /= dnorm
+
+        if step == 0:
+            inputs = np.hstack([prior(xyz[:, 0, :]), d, dnorm])
         else:
-            inputs = np.hstack([vout[:n_ongoing],
-                                d[:n_ongoing], dnorm[:n_ongoing]])
+            inputs = np.hstack([vout, d, dnorm])
 
-        chunk = 2**15  # 32768
+        chunk = 2**16  # 32768
         n_chunks = np.ceil(n_ongoing / chunk).astype(int)
+        vout = np.zeros([n_ongoing, 3])
         for c in range(n_chunks):
 
             outputs = model(inputs[c * chunk : (c + 1) * chunk])
@@ -159,7 +155,7 @@ def run_inference(config=None, gpu_queue=None):
         fiber_idx = np.delete(fiber_idx, terminal_indices)
 
         print("Iter {:4d}/{}, finished {:5d}/{:5d} ({:3.0f}%) of all seeds with"
-              " {:6.0f} steps/sec".format((i+1), config['max_steps'],
+              " {:6.0f} steps/sec".format((step+1), config['max_steps'],
                                           n_seeds-n_ongoing, n_seeds,
                                           100*(1-n_ongoing/n_seeds),
                                           n_ongoing / (time() - t0)),
