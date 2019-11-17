@@ -27,7 +27,7 @@ import configs
 
 
 @setup_env
-def run_inference(config=None, gpu_queue=None):
+def run_inference(config=None, gpu_queue=None, return_to=None):
 
     """"""
     gpu_idx = -1
@@ -36,6 +36,21 @@ def run_inference(config=None, gpu_queue=None):
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
     except Exception as e:
         print(str(e))
+
+    print("Loading Models...") #################################################
+
+    train_config_path = os.path.join(
+        os.path.dirname(config['model_path']), "config.yml")
+
+    model_name = load(train_config_path, "model_name")
+
+    if hasattr(MODELS[model_name], "custom_objects"):
+        model = load_model(config['model_path'],
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
+    else:
+        model = load_model(config['model_path'], compile=False)
+
 
     print("Loading DWI...") ####################################################
 
@@ -53,19 +68,7 @@ def run_inference(config=None, gpu_queue=None):
         else:
             return ijk.T
 
-    print("Loading Models...") #################################################
-
-    train_config_path = os.path.join(
-        os.path.dirname(config['model_path']), "config.yml")
-
-    model_name = load(train_config_path, "model_name")
-
-    if hasattr(MODELS[model_name], "custom_objects"):
-        model = load_model(config['model_path'],
-                           custom_objects=MODELS[model_name].custom_objects,
-                           compile=False)
-    else:
-        model = load_model(config['model_path'], compile=False)
+    ############################################################################
 
     terminator = Terminator(config['term_path'], config['thresh'])
 
@@ -169,7 +172,6 @@ def run_inference(config=None, gpu_queue=None):
     # Exclude unfinished fibers (finished = both ends finished)
     fibers = [fibers[gidx] for gidx in range(len(fibers)) if gidx not in fiber_idx]
 
-
     # Save Result
 
     fibers = [f[0] for f in fibers]
@@ -178,7 +180,6 @@ def run_inference(config=None, gpu_queue=None):
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
-    
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     out_dir = os.path.join(os.path.dirname(config["dwi_path"]),
         "predicted_fibers", timestamp)
@@ -214,7 +215,13 @@ def run_inference(config=None, gpu_queue=None):
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
 
-    return tractogram
+    if return_to is not None:
+        return_to[fiber_path] = {
+        "model_path": config["model_path"],
+        "dwi_path": config["dwi_path"]
+        }
+
+    return fiber_path
 
 
 def infere_batch_seed(xyz, prior, terminator, model,
@@ -448,6 +455,7 @@ def run_rnn_inference(config, gpu_queue=None):
             max_length=config["max_length"],
             python2=config['python2']
             )
+
     return tractogram
 
 
