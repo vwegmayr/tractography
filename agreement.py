@@ -5,7 +5,12 @@ import argparse
 import numpy as np
 import nibabel as nib
 
+from multiprocessing import SimpleQueue, Process
+from time import sleep
+
 import tensorflow as tf
+from tensorflow.keras import backend as K
+
 from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import (AveragePointwiseEuclideanMetric,
     ResampleFeature, distance_matrix)
@@ -19,13 +24,23 @@ from resample_trk import add_tangent
 from utils.config import load
 from utils.training import setup_env, maybe_get_a_gpu
 from utils.prediction import get_blocksize
+from utils._dispatch import get_gpus
 
 from configs import save
 
 
 @setup_env
 def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
-    wm_path, matching_thresh, cluster_thresh, centroid_size):
+    wm_path, matching_thresh, cluster_thresh, centroid_size, gpu_queue=None):
+
+    try:
+        gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
+        os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
+    except Exception as e:
+        print(str(e))
+
+    temperature = np.round(float(re.findall("T=(.*)\.h5", model_path)[0]), 6)
+    model = load_model(model_path)
 
     print("Load data ...")
 
@@ -40,7 +55,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     dwi_2 = dwi_img_2.get_data()
 
     wm_img = nib.load(wm_path)
-    n_wm = (wm_img.get_data() > 0).sum()
+    wm_data = wm_img.get_data()
+    n_wm = (wm_data > 0).sum()
 
     img_shape = dwi_1.shape[:-1]
     voxsize = dwi_img_1.header["pixdim"][1]
@@ -58,14 +74,6 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     if "t" not in tractogram_2.data_per_point:
         tractogram_2 = add_tangent(tractogram_2)
     streamlines_2 = tractogram_2.streamlines
-    
-    ############################################################################
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = maybe_get_a_gpu()
-
-
-    temperature = np.round(float(re.findall("T=(.*)\.h5", model_path)[0]), 6)
-    model = load_model(model_path)
 
     ############################################################################
 
@@ -114,6 +122,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
             bundles_2.clusters[j], affine_2, img_shape)
 
         overlap = np.logical_and(counts_1 > 0, counts_2 > 0)
+        overlap = np.logical_and(overlap, wm_data > 0)
 
         all_ijk.append(np.argwhere(overlap))
         all_directions_1.append(directions_1[overlap])
@@ -147,8 +156,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     i,j,k = all_ijk.T
     for idx in range(block_size**3):
         ii,jj,kk = np.unravel_index(idx, (block_size, block_size, block_size))
-        d_1[:, ii, jj, kk, :] = dwi_1[i,j,k, :]
-        d_2[:, ii, jj, kk, :] = dwi_2[i,j,k, :]
+        d_1[:, ii, jj, kk, :] = dwi_1[i+ii-1, j+jj-1, k+kk-1, :]
+        d_2[:, ii, jj, kk, :] = dwi_2[i+ii-1, j+jj-1, k+kk-1, :]
 
     d_1 = d_1.reshape(-1, dwi_1.shape[-1] * block_size**3)
     d_2 = d_2.reshape(-1, dwi_2.shape[-1] * block_size**3)
@@ -167,6 +176,10 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         model_inputs_1,
         model_inputs_2
     )
+
+    K.clear_session()
+    if gpu_queue is not None:
+        gpu_queue.put(gpu_idx)
     
     agreement = {"temperature": temperature}
     agreement["value"] = asum / n_wm
@@ -295,14 +308,51 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    agreement(
-        args.model_path,
-        args.dwi_path_1,
-        args.trk_path_1,
-        args.dwi_path_2,
-        args.trk_path_2,
-        args.wm_path,
-        args.matching_thresh,
-        args.cluster_thresh,
-        args.centroid_size
-    )
+    if args.config_path is not None:
+
+        config = load(args.config_path)
+
+        gpu_queue = SimpleQueue()
+        for idx in get_gpus():
+            gpu_queue.put(str(idx))
+
+        try:
+            procs=[]
+            for model_path, pair in config["pred_pairs"].items():
+                while gpu_queue.empty():
+                    sleep(2)
+                p = Process(
+                    target=agreement,
+                    args=(model_path,
+                          pair[0]["dwi_path"],
+                          pair[0]["trk_path"],
+                          pair[1]["dwi_path"],
+                          pair[1]["trk_path"],
+                          config["wm_path"],
+                          config["matching_thresh"],
+                          config["cluster_thresh"],
+                          config["centroid_size"],
+                          gpu_queue)
+                )
+                procs.append(p)
+                p.start()
+                sleep(2)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            for p in procs:
+                p.join()
+                while p.exitcode is None:
+                    sleep(0.1)
+    else:
+        agreement(
+            args.model_path,
+            args.dwi_path_1,
+            args.trk_path_1,
+            args.dwi_path_2,
+            args.trk_path_2,
+            args.wm_path,
+            args.matching_thresh,
+            args.cluster_thresh,
+            args.centroid_size
+        )
