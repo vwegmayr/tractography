@@ -59,7 +59,7 @@ def resample_tractogram(tractogram, npts, smoothing):
     n_fails = 0
     for i, f in enumerate(streamlines):
 
-        if len(f) < 2: # Too short to compute derivatives
+        if len(f) < 4: # Too short to compute derivatives
             n_fails += 1
             continue
 
