@@ -10,19 +10,51 @@ from nibabel.streamlines import ArraySequence, Tractogram
 from nibabel.streamlines.trk import TrkFile
 from dipy.io.utils import get_reference_info
 
-def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
+
+def get_seeds_from_wm(wm_path, threshold=0):
+
+    wm_file = nib.load(wm_path)
+    wm_img = wm_file.get_fdata()
+
+    seeds = np.argwhere(wm_img > threshold)
+    seeds = np.hstack([seeds, np.ones([len(seeds), 1])])
+
+    seeds = (wm_file.affine.dot(seeds.T).T)[:, :3].reshape(-1, 1, 3)
+
+    n_seeds = len(seeds)
+
+    header = TrkFile.create_empty_header()
+
+    header["voxel_to_rasmm"] = wm_file.affine
+    header["dimensions"] = wm_file.header["dim"][1:4]
+    header["voxel_sizes"] = wm_file.header["pixdim"][1:4]
+    header["voxel_order"] = get_reference_info(wm_file)[3]
+
+    tractogram = Tractogram(
+            streamlines=ArraySequence(seeds),
+            affine_to_rasmm=np.eye(4)
+        )
+
+    save_path=os.path.join(os.path.dirname(wm_path), "seeds_from_wm.trk")
+
+    print("Saving {}".format(save_path))
+    TrkFile(tractogram, header).save(save_path)
+
+
+def get_ismrm_seeds(data_dir, source, keep, weighted, threshold, voxel):
 
     trk_dir = os.path.join(data_dir, "bundles")
 
     if source in ["wm", "trk"]:
         anat_path = os.path.join(data_dir, "masks", "wm.nii.gz")
-        resized_path = os.path.join(data_dir, "masks", "wm_125.nii.gz")
+        resized_path = os.path.join(data_dir, "masks", "wm_{}.nii.gz".format(voxel))
     elif source == "brain":
         anat_path = os.path.join("subjects", "ismrm_gt", "dwi_brain_mask.nii.gz")
         resized_path = os.path.join("subjects", "ismrm_gt",
             "dwi_brain_mask_125.nii.gz")  
 
-    sp.call(["mrresize", "-voxel", "1.25", anat_path, resized_path])
+    sp.call(["mrresize", "-voxel", "{:1.2f}".format(voxel/100),
+        anat_path, resized_path])
 
     if source == "trk":
 
@@ -107,11 +139,11 @@ def get_ismrm_seeds(data_dir, source, keep, weighted, threshold):
     save_dir=os.path.join(data_dir, "seeds")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    save_path = os.path.join(save_dir, "seeds_from_{}_{}{:03d}.trk")
+    save_path = os.path.join(save_dir, "seeds_from_{}_{}_vox{:03d}.trk")
     save_path = save_path.format(
         source,
-        "W" if weighted else "",
-        int(100*keep)
+        "W"+str(int(100*keep)) if weighted else "all",
+        voxel
     )
 
     print("Saving {}".format(save_path))
@@ -141,6 +173,9 @@ if __name__ == '__main__':
         help="If provided, subsample seeds weighted by fiber bundle size. "
         "Only applicable if source == trk.")
 
+    parser.add_argument("--voxel", choices=[125, 75], default=125, type=int,
+        help="Voxel resolution for wm seeds.")
+
     parser.add_argument("--thresh", default=0.1, type=float,
         help="Only applicable if source == wm. Threshold for White Matter "
         "Mask.")
@@ -154,5 +189,6 @@ if __name__ == '__main__':
         args.source,
         args.keep,
         args.weighted,
-        args.thresh
+        args.thresh,
+        args.voxel
     )
