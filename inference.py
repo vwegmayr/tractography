@@ -23,6 +23,8 @@ from utils.prediction import Prior, Terminator, get_blocksize
 from utils.training import setup_env, maybe_get_a_gpu
 from utils._score import score
 
+from resample_trk import add_tangent
+
 import configs
 
 
@@ -180,6 +182,9 @@ def run_inference(config=None, gpu_queue=None, return_to=None):
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
+
+    tractogram = add_tangent(tractogram)
+
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     out_dir = os.path.join(os.path.dirname(config["dwi_path"]),
         "predicted_fibers", timestamp)
