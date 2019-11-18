@@ -251,7 +251,8 @@ def generate_samples(dwi_path,
                      model,
                      block_size,
                      n_samples,
-                     out_dir):
+                     out_dir,
+                     n_files):
     """"""
     assert n_samples % 2 == 0
 
@@ -307,6 +308,27 @@ def generate_samples(dwi_path,
                 sample_shape=sample_tosave['inputs'].shape,
                 n_samples=n_samples,
                 **sample_tosave)
+    elif n_files != 1:
+        sample_path = os.path.join(out_dir, "samples-{0}.npz")
+        n_per_file = n_samples // n_files
+        for i in range(n_files):
+            print("Saving {}".format(sample_path.format(i)))
+
+            if i == n_files - 1:
+                sample_tosave = {'inputs': samples['inputs'][i * n_per_file:,...],
+                                 'outgoing': samples['outgoing'][i * n_per_file:,...],
+                                 'isterminal': samples['isterminal'][i * n_per_file:,...]}
+            else:
+                sample_tosave = {'inputs': samples['inputs'][i*n_per_file: (i+1)*n_per_file, ...],
+                                 'outgoing': samples['outgoing'][i*n_per_file: (i+1)*n_per_file, ...],
+                                 'isterminal': samples['isterminal'][i*n_per_file: (i+1)*n_per_file, ...]}
+
+            np.savez(
+                sample_path.format(i),
+                input_shape=input_shape,
+                sample_shape=sample_tosave['inputs'].shape,
+                n_samples=n_samples,
+                **samples)
     else:
         sample_path = os.path.join(out_dir, "samples.npz")
         print("\nSaving {}".format(sample_path))
@@ -350,6 +372,10 @@ if __name__ == '__main__':
     parser.add_argument("--n_samples", default=2**30, type=int,
         help="Maximum number of samples to keep.")
 
+    parser.add_argument("--n_files", default=100, type=int,
+        help="Number of output files of the conditional samples. "
+             "For RNN samples it is determined dynamically")
+
     parser.add_argument("--out_dir", default=None, 
         help="Sample directory, by default creates directory next to dwi_path.")
 
@@ -361,4 +387,5 @@ if __name__ == '__main__':
         args.model,
         args.block_size,
         args.n_samples,
-        args.out_dir)
+        args.out_dir,
+        args.n_files)
