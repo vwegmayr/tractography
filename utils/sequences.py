@@ -34,14 +34,15 @@ class Samples(Sequence):
                 if self.samples[key].shape[0] == self.n_samples:
                     self.samples[key] = self.samples[key][perm]
         elif isdir(config['sample_path']):
-            only_samples = [join(config['sample_path'], f) for f in listdir(config['sample_path'])
-                            if isfile(join(config['sample_path'], f)) and 'samples' in f]
-            self.samples = {'inputs': [], 'outgoing':[], 'isterminal':[]}
-            for sample in only_samples:
-                sample_i = np.load(sample, allow_pickle=True)
-                self.samples['inputs'].append(sample_i['inputs'])
-                self.samples['outgoing'].append(sample_i['outgoing'])
-                self.samples['isterminal'].append(sample_i['isterminal'])
+            self.sample_files = sorted([join(config['sample_path'], f)
+                                        for f in listdir(config['sample_path'])
+                                        if isfile(join(config['sample_path'], f))
+                                        and 'samples' in f])
+            self.sample_shapes = []
+            for sample in self.sample_files:
+                sample_i_shape = np.load(sample, allow_pickle=True)[
+                    'sample_shape']
+                self.sample_shapes.append(sample_i_shape)
         else:
             self.samples = np.load(config['sample_path'], allow_pickle=True)  # lazy loading
             self.n_samples = self.samples["n_samples"]
@@ -81,40 +82,61 @@ class RNNSamples(Samples):
     def __init__(self, *args, **kwargs):
         super(RNNSamples, self).__init__(*args, **kwargs)
         print("RNNSamples: Loading {} samples...".format("train" if self.istraining else "eval"))
+        self.current_idx = -1
+        self.current_input = None
+        self.current_output = None
 
-        # Cut whatever doesn't fit in a batch
-        if self.batch_size > 1:
-            self.inputs = [batch_input[:-(batch_input.shape[0] % self.batch_size),...]
-                                    if batch_input.shape[0] > self.batch_size else batch_input
-                                    for batch_input in self.samples["inputs"] ]
-            self.outgoing = [batch_input[:-(batch_input.shape[0] % self.batch_size), ...]
-                                      if batch_input.shape[0] > self.batch_size else batch_input
-                                      for batch_input in self.samples["outgoing"]]
-        self.inputs = [batch_input for batch_input in self.inputs if batch_input.shape[0] >= self.batch_size]
-        self.outgoing = [batch_input for batch_input in self.outgoing if batch_input.shape[0] >= self.batch_size]
+        self.new_shapes = self.inputs = [
+            (batch_shape[0] - (batch_shape[0] % self.batch_size),
+             batch_shape[1], batch_shape[2])
+            if batch_shape[0] > self.batch_size else
+            (batch_shape[0], batch_shape[1], batch_shape[2])
+            for batch_shape in self.sample_shapes]
 
-        if len(self.inputs) < 1:
+        self.sample_files = [self.sample_files[i] for i, shape in
+                             enumerate(self.new_shapes) if
+                             shape[0] >= self.batch_size]
+        self.new_shapes = [shape for shape in self.new_shapes if shape[0] >= self.batch_size]
+
+        # To help find the right fiber for the right batch index
+        self.batch_indices = np.cumsum([(shape[0] // self.batch_size) * shape[1] for shape in self.new_shapes])
+
+        if len(self.new_shapes) < 1:
             raise Exception('Data input is empty. This can happen when '
                             'number of same length fibers are less than the '
                             'selected batch size. Maybe reduce the batch size'
                             'and check again!')
 
         print("Reduced length of input from {0} to {1} to fit the batch size.".
-              format(len(self.samples["inputs"]), len(self.inputs)))
+              format(len(self.sample_shapes), len(self.new_shapes)))
 
-        # To help find the right fiber for the right batch index
-        self.batch_indices = np.cumsum([(fiber.shape[0] // self.batch_size) * fiber.shape[1] for fiber in self.inputs])
         self.reset_batches = self._get_reset_batches()
-
-
 
     def __len__(self):
         return self.batch_indices[-1]
 
     def __getitem__(self, idx):
         first_index = np.where((idx < self.batch_indices))[0][0]
-        first_possible_input = self.inputs[first_index]
-        first_possible_output = self.outgoing[first_index]
+        if first_index == self.current_idx:
+            first_possible_input = self.current_input
+            first_possible_output = self.current_output
+        else:
+            # Load the correct file from the path
+            current_path = self.sample_files[first_index]
+            current_shape = self.new_shapes[first_index]
+            samples = np.load(current_path, allow_pickle=True)
+            first_possible_input = samples['inputs']
+            first_possible_output = samples['outgoing']
+
+            # Cut the data to fir the batch
+            first_possible_input = first_possible_input[:current_shape[0], ...]
+            first_possible_output = first_possible_output[:current_shape[0], ...]
+
+            # Update the cache
+            self.current_input = first_possible_input
+            self.current_output = first_possible_output
+            self.current_idx = first_index
+
         previous_index = first_index - 1
         if previous_index < 0:
             previous_index = 0
@@ -134,7 +156,7 @@ class RNNSamples(Samples):
         reset_batches = []
         for idx in range(self.__len__()):
             first_index = np.where((idx < self.batch_indices))[0][0]
-            first_possible_input = self.inputs[first_index]
+            first_possible_shape = self.new_shapes[first_index]
             previous_index = first_index - 1
 
             if previous_index < 0:
@@ -142,7 +164,7 @@ class RNNSamples(Samples):
             else:
                 previous_index = self.batch_indices[previous_index]
             current_batch_idx = idx - previous_index
-            col_idx = current_batch_idx % first_possible_input.shape[1]
+            col_idx = current_batch_idx % first_possible_shape[1]
             if col_idx == 0:
                 reset_batches.append(idx)
 

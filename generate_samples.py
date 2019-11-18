@@ -304,6 +304,7 @@ def generate_samples(dwi_path,
             np.savez(
                 sample_path.format(i),
                 input_shape=input_shape,
+                sample_shape=sample_tosave['inputs'].shape,
                 n_samples=n_samples,
                 **sample_tosave)
     else:
