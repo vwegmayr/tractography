@@ -3,7 +3,7 @@ model_type: conditional
 
 action: training
 
-temperature: 0.03
+temperature: 0.1
 
 optimizer: Adam
 opt_params: 
@@ -20,8 +20,8 @@ callbacks:
     window_size: 32
   AutomaticTemperatureSchedule:
     temperature: None
-    T_stop: 0.0005
-    decay: 0.98
+    T_stop: 0.001
+    decay: 0.99
     tol: 0.01
     min_lr: 0.0002
     n_checkpoints: 20
@@ -91,8 +91,9 @@ out_dir: None
 # W0050
 train_path:
   - subjects/599671/samples/2019-11-14-15:45:23/samples.npz
+  - subjects/601127/samples/2019-11-11-14:29:24/samples.npz
   - subjects/702133/samples/2019-11-11-14:32:55/samples.npz
   - subjects/802844/samples/2019-11-11-14:43:39/samples.npz
-  - subjects/601127/samples/2019-11-11-14:29:24/samples.npz
+  - subjects/859671/samples/2019-11-14-15:55:13/samples.npz
   - subjects/992774/samples/2019-11-11-14:27:38/samples.npz
 eval_path: subjects/917255/samples/2019-11-11-10:42:51/samples.npz
