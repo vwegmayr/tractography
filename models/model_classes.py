@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from os.path import isdir
 import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
@@ -217,12 +218,14 @@ class Trackifier(Model):
     summaries = "FvMSummaries"
 
     def __init__(self, config):
-
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        if isdir(config['train_path']):
+            input_shape = tuple(
+                np.load(config["train_path"] + 'samples-0.npz', allow_pickle=True)["input_shape"])
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
         inputs = Input(shape=input_shape, name="inputs")
-
         self.keras = tf.keras.Model(
             inputs,
             self.model_fn(inputs, config["bvec_path"]),
@@ -421,6 +424,9 @@ class Entrack(Model):
         elif isinstance(config["train_path"], list):
             input_shape = tuple(
                 np.load(config["train_path"][0], allow_pickle=True)["input_shape"])
+        elif isdir(config['train_path']):
+            input_shape = tuple(
+                np.load(config["train_path"] + 'samples-0.npz', allow_pickle=True)["input_shape"])
         else:
             input_shape = tuple(
                 np.load(config["train_path"], allow_pickle=True)["input_shape"])
