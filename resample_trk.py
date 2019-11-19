@@ -39,12 +39,14 @@ def fiber_geometry(fiber, npts, smoothing):
     return r, t, npts
 
 
-def add_tangent(tractogram):
+def add_tangent(tractogram, min_length=0, max_length=1000):
     print("Adding tangents ...")
-    return resample_tractogram(tractogram, npts="same", smoothing=0)
+    return resample_tractogram(tractogram, npts="same", smoothing=0,
+        min_length=min_length, max_length=max_length)
 
 
-def resample_tractogram(tractogram, npts, smoothing):
+def resample_tractogram(tractogram, npts, smoothing,
+    min_length=0, max_length=1000):
 
     streamlines = tractogram.streamlines
 
@@ -57,10 +59,12 @@ def resample_tractogram(tractogram, npts, smoothing):
             axis=1).max()
     
     n_fails = 0
+    n_length = 0
     for i, f in enumerate(streamlines):
 
-        if len(f) < 4: # Too short to compute derivatives
-            n_fails += 1
+        flen = np.linalg.norm(f[1:] - f[:-1], axis=1).sum()
+        if (flen < min_length) or (flen > max_length):
+            n_length += 1
             continue
 
         r, t, cnt = fiber_geometry(f, npts=npts, smoothing=smoothing)
@@ -79,6 +83,10 @@ def resample_tractogram(tractogram, npts, smoothing):
         print("Failed to resample {} out of {} ".format(n_fails,
             len(streamlines)) + "fibers, they were not included.")
         
+    if n_length > 0:
+        print("{} out of {} ".format(n_length,
+            len(streamlines)) + "fibers excluded by length.")
+
     position.finalize_append()
     tangent.finalize_append()
 
@@ -101,11 +109,12 @@ def resample_tractogram(tractogram, npts, smoothing):
     )
 
 
-def resample(trk_path, npts, smoothing, out_dir):
+def resample(trk_path, npts, smoothing, out_dir, min_length=0, max_length=1000):
     
     trk_file = nib.streamlines.load(trk_path)
 
-    tractogram = resample_tractogram(trk_file.tractogram, npts, smoothing)
+    tractogram = resample_tractogram(trk_file.tractogram, npts, smoothing,
+        min_length, max_length)
     
     if out_dir is None:
         out_dir = os.path.dirname(trk_path)
@@ -119,6 +128,25 @@ def resample(trk_path, npts, smoothing, out_dir):
     TrkFile(tractogram, trk_file.header).save(save_path)
     
     return tractogram
+
+
+def maybe_add_tangent(trk_path, min_length=0, max_length=1000):
+
+    cache_path = trk_path[:-4] + "_t.trk"
+
+    if os.path.exists(cache_path):
+        trk_file = nib.streamlines.load(cache_path)
+        return trk_file.tractogram
+    else:
+        trk_file = nib.streamlines.load(trk_path)
+        tractogram = trk_file.tractogram
+
+        if "t" not in tractogram.data_per_point:
+            tractogram = add_tangent(tractogram, min_length=min_length,
+                max_length=max_length)
+            TrkFile(tractogram, trk_file.header).save(cache_path)
+
+        return tractogram
 
 
 if __name__ == '__main__':
