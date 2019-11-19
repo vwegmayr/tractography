@@ -2,13 +2,13 @@ import os
 import random
 import datetime
 import time
+import git
 
 import nibabel as nib
 import numpy as np
 import yaml
 import argparse
 import itertools
-import copy
 
 from scipy.interpolate import RegularGridInterpolator
 
@@ -337,7 +337,9 @@ def generate_samples(dwi_path,
             input_shape=input_shape,
             n_samples=n_samples,
             **samples)
-    
+
+    repo = git.Repo(".")
+    commit = repo.head.commit
     config_path = os.path.join(out_dir, "config.yml")
     config=dict(
         n_samples=int(n_samples),
@@ -345,6 +347,7 @@ def generate_samples(dwi_path,
         trk_path=trk_path,
         model=model,
         block_size=int(block_size),
+        commit=str(commit)
     )
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:

@@ -3,6 +3,7 @@ import gc
 import argparse
 import datetime
 import yaml
+import git
 
 import nibabel as nib
 import numpy as np
@@ -198,7 +199,9 @@ def run_inference(config=None, gpu_queue=None, return_to=None):
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
     config['training_config'] = load(train_config_path)
-
+    repo = git.Repo(".")
+    commit = repo.head.commit
+    config['commit'] = str(commit)
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
@@ -446,8 +449,11 @@ def run_rnn_inference(config, gpu_queue=None):
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
+    repo = git.Repo(".")
+    commit = repo.head.commit
     config_path = os.path.join(out_dir, "config.yml")
     config['training_config'] = load(train_config_path)
+    config['commit'] = str(commit)
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
         yaml.dump(config, file, default_flow_style=False)
