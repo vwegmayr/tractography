@@ -12,6 +12,7 @@ from utils._dispatch import get_gpus
 from utils.config import load
 from configs import save
 
+
 def find_optimal_temperature(config):
 
     model_paths = list(glob.glob(config["model_glob"]))
@@ -62,7 +63,7 @@ def find_optimal_temperature(config):
     agreement_config = {}
     agreement_config["pred_pairs"] = deepcopy(pred_pairs)
     agreement_config["wm_path"] = config["wm_path"]
-    agreement_config["matching_thresh"] = config["matching_thresh"]
+    agreement_config["fixel_cnt_path"] = config["fixel_cnt_path"]
     agreement_config["cluster_thresh"] = config["cluster_thresh"]
     agreement_config["centroid_size"] = config["centroid_size"]
 
@@ -85,7 +86,7 @@ def find_optimal_temperature(config):
                       pair[1]["dwi_path"],
                       pair[1]["trk_path"],
                       config["wm_path"],
-                      config["matching_thresh"],
+                      config["fixel_cnt_path"]
                       config["cluster_thresh"],
                       config["centroid_size"],
                       gpu_queue)
