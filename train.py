@@ -56,11 +56,19 @@ def train(config=None, gpu_queue=None):
 
         model.compile(optimizer)
 
+        if isinstance(config['train_path'], list):
+            for i, subject in enumerate(config['train_path']):
+                samples_config = os.path.join(
+                    os.path.dirname(subject), 'config.yml')
+                samples_config = configs.load(samples_config)
+                config['input_sampels_config_{0}'.format(i)] = samples_config
+        else:
+            samples_config = os.path.join(
+                os.path.dirname(config['train_path']), 'config.yml')
+            samples_config = configs.load(samples_config)
+            config['input_sampels_config'] = samples_config
         repo = git.Repo(".")
         commit = repo.head.commit
-        samples_config = os.path.join(os.path.dirname(config['train_path']), 'config.yml')
-        samples_config = configs.load(samples_config)
-        config['input_sampels_config'] = samples_config
         config['commit'] = str(commit)
         configs.save(config)
 

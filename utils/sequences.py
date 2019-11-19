@@ -12,7 +12,8 @@ class Samples(Sequence):
         """"""
         self.batch_size = config['batch_size']
         self.istraining = config['istraining']
-        if isinstance(config['sample_path'], list):
+        if isinstance(config['sample_path'], list) and \
+                not isdir(config['sample_path'][0]):
             if isinstance(self, RNNSamples):
                 raise NotImplementedError("Do RNNSamples support several subjects?")
             self.sample_files = [np.load(p, allow_pickle=True)
@@ -33,6 +34,22 @@ class Samples(Sequence):
                 self.samples[key] = np.vstack(self.samples[key])
                 if self.samples[key].shape[0] == self.n_samples:
                     self.samples[key] = self.samples[key][perm]
+        elif isinstance(config['sample_path'], list) and \
+                isdir(config['sample_path'][0]):
+            self.samples = {}
+            self.sample_files = [join(subject, f)
+                                 for subject in config['sample_path']
+                                 for f in listdir(subject)
+                                 if isfile(join(subject, f))
+                                 and 'samples' in f]
+
+            self.sample_shapes = []
+            for sample in self.sample_files:
+                sample_i = np.load(sample, allow_pickle=True)
+                sample_i_shape = sample_i['sample_shape']
+                self.n_samples = sample_i["n_samples"]
+                self.sample_shapes.append(sample_i_shape)
+
         elif isdir(config['sample_path']):
             self.samples = {}
             self.sample_files = sorted([join(config['sample_path'], f)

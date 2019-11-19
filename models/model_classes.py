@@ -242,7 +242,7 @@ class Trackifier(Model):
 
         x = Dense(1024, activation="relu")(x)
         x = Dense(1024, activation="relu")(x)
-        x = Dense(72, activation="softmax", name='output')(x)
+        x = Dense(108, activation="softmax", name='output')(x)
 
         return tfp.layers.DistributionLambda(
             make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
@@ -421,9 +421,15 @@ class Entrack(Model):
 
         if 'input_shape' in config:
             input_shape = config['input_shape']
-        elif isinstance(config["train_path"], list):
+        elif isinstance(config["train_path"], list) and \
+                not isdir(config['train_path'][0]):
             input_shape = tuple(
                 np.load(config["train_path"][0], allow_pickle=True)["input_shape"])
+        elif isinstance(config["train_path"], list) and \
+                isdir(config['train_path'][0]):
+            input_shape = tuple(
+                np.load(config["train_path"][0] + 'samples-0.npz',
+                        allow_pickle=True)["input_shape"])
         elif isdir(config['train_path']):
             input_shape = tuple(
                 np.load(config["train_path"] + 'samples-0.npz', allow_pickle=True)["input_shape"])
