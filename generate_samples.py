@@ -328,7 +328,7 @@ def generate_samples(dwi_path,
                 input_shape=input_shape,
                 sample_shape=sample_tosave['inputs'].shape,
                 n_samples=n_samples,
-                **samples)
+                **sample_tosave)
     else:
         sample_path = os.path.join(out_dir, "samples.npz")
         print("\nSaving {}".format(sample_path))
