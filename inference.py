@@ -287,9 +287,8 @@ def infere_batch_seed(xyz, prior, terminator, model,
         else:
             inputs = np.hstack([vout, d, dnorm])
 
-        outputs = model(inputs[:, np.newaxis, :])
-
         if 'Entrack' in model_name:
+            outputs = model(inputs[:, np.newaxis, :])
             if isinstance(outputs, list):
                 outputs = outputs[0]
 
@@ -298,7 +297,8 @@ def infere_batch_seed(xyz, prior, terminator, model,
             elif config['predict_fn'] == "sample":
                 vout = outputs.sample().numpy()
         else:
-            vout = outputs.squeeze()
+            vout = model.predict(inputs[:, np.newaxis, :]).squeeze()
+
         vout = np.squeeze(vout)
         rout = xyz[:, -1, :3] + step_size * vout
         rout = np.hstack([rout, np.ones((n_seeds, 1))]).reshape(-1, 1, 4)
