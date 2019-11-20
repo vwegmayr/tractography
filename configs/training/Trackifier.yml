@@ -9,9 +9,9 @@ epochs: 10
 batch_size: 128
 shuffle: False
 
-train_path: /local/home/vwegmayr/ijcv19/subjects/992774/samples/2019-11-11-19:37:28/samples.npz
-eval_path: /local/home/vwegmayr/ijcv19/subjects/917255/samples/2019-11-11-10:42:51/samples.npz
-bvec_path: /local/home/vwegmayr/ijcv19/subjects/992774/bvecs_input
+train_path: /local/tract/conditional_samples/992774/2019-11-20-14:42:16/  # 0.2 keep
+eval_path: /local/tract/conditional_samples/644044/2019-11-19-15:39:21/ # 0.01 keep
+bvec_path: subjects/992774/bvecs_input
 
 callbacks:
   ModelCheckpoint:

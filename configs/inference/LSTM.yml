@@ -1,14 +1,18 @@
 model_name: RNNLSTM
 
-model_path: models/RNNLSTM/2019-11-12-12:29:55/final_model.h5  # LSTM
-dwi_path: subjects/ismrm_gt/fod_norm_125.nii.gz
-prior_path: subjects/ismrm_gt/tensor_V1_125.nii.gz
+model_path: models/RNNLSTM/2019-11-19/15:32:43/inter_model_06-0.00.h5  # LSTM
+dwi_path: subjects/ismrm_basic/fod_norm_125.nii.gz
+prior_path: subjects/ismrm_basic/tensor_V1_125.nii.gz
 seed_path: scoring/scoring_data/seeds/seeds_from_wm_100.trk
-term_path: subjects/ismrm_gt/wm_mask_125.nii.gz
+term_path: subjects/ismrm_basic/wm_mask_125.nii.gz
 
 thresh: 0.1
 
 step_size: 0.25
 max_steps: 800
 batch_size: 20000
+score: True
+min_length: 30
+max_length: 200
+python2: /local/home/abahrein/.envs/scoring/bin/activate
 out_dir:
