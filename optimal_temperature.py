@@ -15,10 +15,10 @@ from configs import save
 
 def find_optimal_temperature(config):
 
-    model_paths = list(glob.glob(config["model_glob"]))
+    model_paths = glob.glob(config["model_glob"])
 
-    dwi_path_1 = config["inference"]["dwi_path"].format("", "")
-    dwi_path_2 = config["inference"]["dwi_path"].format("retest", "_aligned")
+    dwi_path_1 = config["inference"]["dwi_path"].format("")
+    dwi_path_2 = config["inference"]["dwi_path"].format("retest")
 
     gpu_queue = SimpleQueue()
     for idx in get_gpus():
@@ -86,7 +86,7 @@ def find_optimal_temperature(config):
                       pair[1]["dwi_path"],
                       pair[1]["trk_path"],
                       config["wm_path"],
-                      config["fixel_cnt_path"]
+                      config["fixel_cnt_path"],
                       config["cluster_thresh"],
                       config["centroid_size"],
                       gpu_queue)
@@ -104,10 +104,7 @@ def find_optimal_temperature(config):
 
 
 def parse(config, path, instance):
-    config[path] = config[path].format(
-        "retest" if instance == 1 else "",
-        "_aligned" if instance == 1 else ""
-    )
+    config[path] = config[path].format("retest" if instance == 1 else "")
 
 
 def group_by_model(predictions):

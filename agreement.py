@@ -60,17 +60,18 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     n_wm = (wm_data > 0).sum()
 
     fixel_cnt = nib.load(fixel_cnt_path).get_data()[:,:,:,0]
-    fixel_cnt = fixel_cnt[wm>0]
+    fixel_cnt = fixel_cnt[wm_data>0]
 
-    n_fixels = np.sum( k * (fixel_cnt == k).sum() for k in np.unique(fixel_cnt))
+    k_fixels = np.unique(fixel_cnt)
+    max_fixels = k_fixels.max()
+    n_fixels = np.sum( k * (fixel_cnt == k).sum() for k in k_fixels)
 
     img_shape = dwi_1.shape[:-1]
-    voxsize = dwi_img_1.header["pixdim"][1]
 
     #---------------------------------------------------------------------------
 
-    tractogram_1 = maybe_add_tangent(trk_path_1, min_length=30, max_length=200)
-    tractogram_2 = maybe_add_tangent(trk_path_2, min_length=30, max_length=200)
+    tractogram_1 = maybe_add_tangent(trk_path_1)
+    tractogram_2 = maybe_add_tangent(trk_path_2)
 
     streamlines_1 = tractogram_1.streamlines
     streamlines_2 = tractogram_2.streamlines
@@ -121,24 +122,53 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     print("Computing bundle masks ...")
 
+    already_explained = np.zeros(wm_data.shape + (max_fixels, 3, ))
+    already_explained_counter = np.zeros(wm_data.shape, dtype="int32")
+
     all_directions_1 = []
     all_directions_2 = []
     all_ijk = []
-    for i in range(len(bundles_1)):
+    no_overlap=0
+    for b in range(len(bundles_1)):
         counts_1, directions_1 = bundle_map(
-            bundles_1.clusters[i], affine_1, img_shape)
+            bundles_1.clusters[b], affine_1, img_shape)
         counts_2, directions_2 = bundle_map(
-            bundles_2.clusters[i], affine_2, img_shape)
+            bundles_2.clusters[b], affine_2, img_shape)
 
         overlap = np.logical_and(counts_1 > 0, counts_2 > 0)
         overlap = np.logical_and(overlap, wm_data > 0)
 
         if overlap.sum() > 0:
-            all_ijk.append(np.argwhere(overlap))
-            all_directions_1.append(directions_1[overlap])
-            all_directions_2.append(directions_2[overlap])
 
-        print("Computed pair {:4d}/{:4d}".format(i, len(bundles_1)), end="\r")
+            ijk = np.argwhere(overlap)
+            i,j,k = ijk.T
+
+            directions_1 = directions_1[overlap]
+            directions_2 = directions_2[overlap]
+
+            # Check which voxels have been explained already
+            explained_before = np.zeros(len(ijk), dtype=np.bool)
+            for fix in range(max_fixels):
+                prod = (already_explained[i,j,k,fix,:] * directions_1).sum(axis=-1)
+                isclose = np.abs(prod) > np.cos(np.pi / 3) # pi/16 = 11.25° angle
+                explained_before = np.logical_or(explained_before, isclose)
+
+            # Update book-keeping
+            for fix in range(max_fixels): 
+                fixel_layer = already_explained_counter[i,j,k] == fix
+                update = np.logical_and(~explained_before, fixel_layer)
+                already_explained[i,j,k,fix,:][update] = directions_1[update]
+                already_explained_counter[i,j,k][update] += 1
+
+            # Append voxels, which are in the intersection of wm, bundle1,
+            # bundle2, and which have not been explained before.
+            all_ijk.append(ijk[~explained_before])
+            all_directions_1.append(directions_1[~explained_before])
+            all_directions_2.append(directions_2[~explained_before])
+        else:
+            no_overlap += 1
+
+        print("Computed pair {:4d}/{:4d}".format(b, len(bundles_1)), end="\r")
 
     all_directions_1 = np.vstack(all_directions_1)
     all_directions_2 = np.vstack(all_directions_2)
@@ -185,7 +215,6 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         model_inputs_1,
         model_inputs_2
     )
-    
     agreement = {"temperature": temperature}
     agreement["n_bundles"] = len(bundles_1)
     agreement["n_recognized"] = n_recognized
@@ -195,23 +224,29 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     agreement["max"] = amax
     agreement["n_vox"] = n_segments
     agreement["n_wm"] = n_wm
+    agreement["no_overlap"] = no_overlap
     agreement["n_fixels"] = n_fixels
     agreement["dwi_1"] = dwi_path_1
     agreement["trk_1"] = trk_path_1
     agreement["dwi_2"] = dwi_path_2
     agreement["trk_2"] = trk_path_2
     agreement["ideal"] = ideal_agreement(temperature)
-
+    for k in range(already_explained_counter.max() + 1):
+        agreement["n_vox_with_{}_fixels".format(k)] = (
+            (already_explained_counter == k).sum()
+        )
+    agreement["cluster_sizes_1"] = bundles_1.clusters_sizes()
+    agreement["cluster_sizes_2"] = bundles_2.clusters_sizes()
     ############################################################################
 
     save(agreement,
         "agreement_T={}.yml".format(temperature),
         os.path.dirname(model_path)
     )
-
     K.clear_session()
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
+
 
 def logZ(kappa):
     expk2 = np.exp(- 2 * kappa)
@@ -329,7 +364,9 @@ if __name__ == '__main__':
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
                 while gpu_queue.empty():
-                    sleep(2)
+                    sleep(10)
+
+                sleep(10)
                 p = Process(
                     target=agreement,
                     args=(model_path,
@@ -345,7 +382,7 @@ if __name__ == '__main__':
                 )
                 procs.append(p)
                 p.start()
-                sleep(3)
+
         except KeyboardInterrupt:
             pass
         finally:
