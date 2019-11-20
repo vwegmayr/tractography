@@ -8,14 +8,20 @@ import subprocess
 from nibabel.streamlines.trk import TrkFile
 
 
-def trim(trk_path, min_length, max_length, fast=True):
+def trim(trk_path, min_length, max_length, fast=True, overwrite=False):
 
-    trimmed_path = (
-        trk_path[:-4] + "_{:2.0f}mm{:3.0f}.trk".format(
-            min_length, max_length)
-    )
+    if overwrite:
+        trimmed_path = trk_path
+    else:
+        trimmed_path = (
+            trk_path[:-4] + "_{:2.0f}mm{:3.0f}.trk".format(
+                min_length, max_length)
+        )
 
-    if fast:
+    trk_file = nib.streamlines.load(trk_path)
+    tractogram = trk_file.tractogram
+
+    if fast and len(tractogram.data_per_point) == 0:
         cmd = [
             "track_vis", trk_path, "-nr", "-l", str(min_length),
             str(max_length), "-o", trimmed_path
@@ -24,13 +30,9 @@ def trim(trk_path, min_length, max_length, fast=True):
         subprocess.run(cmd, shell=True)
     else:
         print("Loading fibers for trimming ...")
-        trk_file = nib.streamlines.load(trk_path)
-
-        tractogram = trk_file.tractogram
-
         print("Trimming fibers ...")
         keep = [i for i in range(len(tractogram))]
-        for i, tract in enumerate(trk_file.tractogram):
+        for i, tract in enumerate(tractogram):
             fiber = tract.streamline
             flen = np.linalg.norm(fiber[1:] - fiber[:-1], axis=1).sum()
             if flen < min_length or flen > max_length:
