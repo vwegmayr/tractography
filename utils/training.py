@@ -5,10 +5,12 @@ import datetime
 import tensorflow as tf
 import numpy as np
 
-from GPUtil import getFirstAvailable
+from GPUtil import getFirstAvailable, getAvailable
 
 from tensorflow.python.ops.resource_variable_ops import ResourceVariable
 from tensorflow.keras import backend as K
+
+from multiprocessing import SimpleQueue
 
 from utils import summaries as tracking_summaries
 from utils import callbacks as tracking_callbacks
@@ -42,7 +44,7 @@ def setup_env(func):
 
 def maybe_get_a_gpu():
     return str(getFirstAvailable(
-            order="load", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
+            order="random", maxLoad=10 ** -6, maxMemory=10 ** -1)[0])
 
 
 def timestamp(separate=False):
@@ -65,3 +67,12 @@ def parse_callbacks(config):
         callbacks.append(CB)
 
     return callbacks
+
+
+def get_gpus():
+    return [str(idx) for idx in 
+        getAvailable(limit=8, maxLoad=10**-1, maxMemory=10**-1)]
+
+
+def n_gpus():
+    return len(get_gpus())
