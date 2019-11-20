@@ -133,8 +133,25 @@ class FvM(Model):
 
     def __init__(self, config):
 
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        if 'input_shape' in config:
+            input_shape = config['input_shape']
+        elif isinstance(config["train_path"], list) and \
+                not isdir(config['train_path'][0]):
+            input_shape = tuple(
+                np.load(config["train_path"][0], allow_pickle=True)[
+                    "input_shape"])
+        elif isinstance(config["train_path"], list) and \
+                isdir(config['train_path'][0]):
+            input_shape = tuple(
+                np.load(config["train_path"][0] + 'samples-0.npz',
+                        allow_pickle=True)["input_shape"])
+        elif isdir(config['train_path']):
+            input_shape = tuple(
+                np.load(config["train_path"] + 'samples-0.npz',
+                        allow_pickle=True)["input_shape"])
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
         inputs = Input(shape=input_shape, name="inputs")
 
