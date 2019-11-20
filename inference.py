@@ -184,7 +184,11 @@ def run_inference(config=None, gpu_queue=None, return_to=None):
         affine_to_rasmm=np.eye(4)
     )
 
-    tractogram = add_tangent(tractogram)
+    tractogram = add_tangent(
+        tractogram,
+        min_length=config["min_length"],
+        max_length=config["max_length"]
+    )
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     out_dir = os.path.join(os.path.dirname(config["dwi_path"]),
