@@ -6,7 +6,7 @@ import numpy as np
 import subprocess
 
 from nibabel.streamlines.trk import TrkFile
-
+from pathos.pools import ProcessPool
 
 def trim(trk_path, min_length, max_length, fast=True, overwrite=False):
 
@@ -18,9 +18,11 @@ def trim(trk_path, min_length, max_length, fast=True, overwrite=False):
                 min_length, max_length)
         )
 
+    print("Loading fibers for trimming ...")
     trk_file = nib.streamlines.load(trk_path)
     tractogram = trk_file.tractogram
 
+    print("Trimming fibers ...")
     if fast and len(tractogram.data_per_point) == 0:
         cmd = [
             "track_vis", trk_path, "-nr", "-l", str(min_length),
@@ -29,16 +31,18 @@ def trim(trk_path, min_length, max_length, fast=True, overwrite=False):
         cmd = " ".join(cmd)
         subprocess.run(cmd, shell=True)
     else:
-        print("Loading fibers for trimming ...")
-        print("Trimming fibers ...")
-        keep = [i for i in range(len(tractogram))]
-        for i, tract in enumerate(tractogram):
-            fiber = tract.streamline
-            flen = np.linalg.norm(fiber[1:] - fiber[:-1], axis=1).sum()
-            if flen < min_length or flen > max_length:
-                keep.remove(i)
-     
-        TrkFile(tractogram[keep], trk_file.header).save(trimmed_path)
+        pool = ProcessPool(nodes=10)
+
+        def has_ok_length(f):
+            l = np.linalg.norm(f[1:] - f[:-1], axis=1).sum()
+            if l < min_length or l > max_length:
+                return False
+            else:
+                return True
+
+        is_ok = pool.map(has_ok_length, tractogram.streamlines)
+
+        TrkFile(tractogram[is_ok], trk_file.header).save(trimmed_path)
 
     print("Saving trimmed fibers to {}".format(trimmed_path))
     return trimmed_path
