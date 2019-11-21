@@ -1,5 +1,6 @@
 import os
 import re
+import gc
 import yaml
 import argparse
 import numpy as np
@@ -7,6 +8,8 @@ import nibabel as nib
 
 from multiprocessing import SimpleQueue, Process
 from time import sleep
+
+from scipy.sparse.csgraph import connected_components 
 
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -32,7 +35,8 @@ from configs import save
 
 @setup_env
 def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
-    wm_path, fixel_cnt_path, cluster_thresh, centroid_size, gpu_queue=None):
+    wm_path, fixel_cnt_path, cluster_thresh, centroid_size, fixel_thresh,
+    bundle_min_cnt, gpu_queue=None):
 
     try:
         gpu_idx = maybe_get_a_gpu() if gpu_queue is None else gpu_queue.get()
@@ -64,7 +68,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     k_fixels = np.unique(fixel_cnt)
     max_fixels = k_fixels.max()
-    n_fixels = np.sum( k * (fixel_cnt == k).sum() for k in k_fixels)
+    n_fixels_gt = np.sum( k * (fixel_cnt == k).sum() for k in k_fixels)
 
     img_shape = dwi_1.shape[:-1]
 
@@ -76,9 +80,14 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     streamlines_1 = tractogram_1.streamlines
     streamlines_2 = tractogram_2.streamlines
 
+    n_streamlines_1 = len(streamlines_1)
+    n_streamlines_2 = len(streamlines_2)
+
+    tractogram_1.extend(tractogram_2)
+
     ############################################################################
 
-    print("Clustering streamlines in first instance.")
+    print("Clustering streamlines.")
 
     feature = ResampleFeature(nb_points=centroid_size)
 
@@ -87,112 +96,109 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         metric=AveragePointwiseEuclideanMetric(feature)
     )
 
-    bundles_1 = qb.cluster(streamlines_1)
-    bundles_1.refdata = tractogram_1
+    bundles = qb.cluster(streamlines_1)
+    bundles.refdata = tractogram_1
 
-    print("Found {} bundles in first instance.".format(len(bundles_1)))
+    n_bundles = len(bundles)
 
-    rb = RecoBundles(
-        streamlines_2,
-        greater_than=30,
-        clust_thr=cluster_thresh,
-        nb_pts=centroid_size,
-        verbose=False,
-        rng=np.random.RandomState(42)
+    print("Found {} bundles.".format(n_bundles))
+
+    print("Computing bundle masks...")
+    
+    direction_masks_1 = np.zeros((n_bundles, ) + img_shape + (3, ), np.float16)
+    direction_masks_2 = np.zeros((n_bundles, ) + img_shape + (3, ), np.float16)
+    count_masks_1 = np.zeros((n_bundles, ) + img_shape, np.uint16)
+    count_masks_2 = np.zeros((n_bundles, ) + img_shape, np.uint16)
+
+    marginal_bundles = 0
+    for i, b in enumerate(bundles.clusters):
+
+        is_from_1 = np.argwhere(
+            np.array(b.indices) < n_streamlines_1).squeeze().tolist()
+        is_from_2 = np.argwhere(
+            np.array(b.indices) >= n_streamlines_1).squeeze().tolist()
+
+        if (np.sum(is_from_1) > bundle_min_cnt and
+            np.sum(is_from_2) > bundle_min_cnt):
+
+            counts_1, directions_1 = bundle_map(b[is_from_1], affine_1, img_shape)
+            counts_2, directions_2 = bundle_map(b[is_from_2], affine_2, img_shape)
+
+            direction_masks_1[i] = directions_1.copy("K")
+            direction_masks_2[i] = directions_2.copy("K")
+
+            count_masks_1[i] = counts_1.copy("K")
+            count_masks_2[i] = counts_2.copy("K")
+        else:
+            marginal_bundles += 1
+
+        print("Computed bundle {:3d}.".format(i), end="\r")
+
+        gc.collect()
+
+    overlap = (
+        (count_masks_1 > 0) * (count_masks_2 > 0) * np.expand_dims(wm_data > 0, 0)
     )
 
-    print("Start Recognizing bundles in second instance.")
+    print("Calculating Fixels...")
 
-    n_recognized = 0
-    bundles_2 = ClusterMap(refdata=tractogram_2)
-    for i, c in enumerate(bundles_1.clusters):
-        _, indices = rb.recognize(
-            tractogram_1[c.indices].streamlines,
-            model_clust_thr=cluster_thresh,
-            reduction_thr=1.25*cluster_thresh,
-            reduction_distance='mam',
-            slr=False,
-            pruning_distance='mam',
-            pruning_thr=1.25*cluster_thresh
-        )
-        cluster = Cluster(id=i, indices=indices)
-        bundles_2.add_cluster(cluster)
-        if len(indices) > 0:
-            n_recognized += 1
+    fixel_directions_1 = []
+    fixel_directions_2 = []
+    fixel_ijk = []
+    n_fixels = []
+    no_overlap = 0
+    for v in range(np.prod(img_shape)):
 
-    print("Computing bundle masks ...")
+        vox = np.unravel_index(v, img_shape)
 
-    already_explained = np.zeros(wm_data.shape + (max_fixels, 3, ))
-    already_explained_counter = np.zeros(wm_data.shape, dtype="int32")
+        matched = overlap[:, vox[0], vox[1], vox[2]] > 0
 
-    all_directions_1 = []
-    all_directions_2 = []
-    all_ijk = []
-    no_overlap=0
-    for b in range(len(bundles_1)):
-        counts_1, directions_1 = bundle_map(
-            bundles_1.clusters[b], affine_1, img_shape)
-        counts_2, directions_2 = bundle_map(
-            bundles_2.clusters[b], affine_2, img_shape)
+        if matched.sum() > 0:
 
-        overlap = np.logical_and(counts_1 > 0, counts_2 > 0)
-        overlap = np.logical_and(overlap, wm_data > 0)
+            dir_1 = direction_masks_1[matched, vox[0], vox[1], vox[2], :]
+            cnts_1 = count_masks_1[matched, vox[0], vox[1], vox[2]]
 
-        if overlap.sum() > 0:
+            dir_2 = direction_masks_2[matched, vox[0], vox[1], vox[2], :]
+            cnts_2 = count_masks_2[matched, vox[0], vox[1], vox[2]]
 
-            ijk = np.argwhere(overlap)
-            i,j,k = ijk.T
+            fixels1, fixels2 = cluster_fixels(
+                dir_1, dir_2, cnts_1, cnts_2,
+                threshold=np.cos(np.pi/fixel_thresh)
+            )
 
-            directions_1 = directions_1[overlap]
-            directions_2 = directions_2[overlap]
+            n_f = len(fixels1)
 
-            # Check which voxels have been explained already
-            explained_before = np.zeros(len(ijk), dtype=np.bool)
-            for fix in range(max_fixels):
-                prod = (already_explained[i,j,k,fix,:] * directions_1).sum(axis=-1)
-                isclose = np.abs(prod) > np.cos(np.pi / 3) # pi/16 = 11.25° angle
-                explained_before = np.logical_or(explained_before, isclose)
+            fixel_directions_1.append(fixels1)
+            fixel_directions_2.append(fixels2)
+            fixel_ijk.append(np.tile(vox, (n_f, 1)))
 
-            # Update book-keeping
-            for fix in range(max_fixels): 
-                fixel_layer = already_explained_counter[i,j,k] == fix
-                update = np.logical_and(~explained_before, fixel_layer)
-                already_explained[i,j,k,fix,:][update] = directions_1[update]
-                already_explained_counter[i,j,k][update] += 1
-
-            # Append voxels, which are in the intersection of wm, bundle1,
-            # bundle2, and which have not been explained before.
-            all_ijk.append(ijk[~explained_before])
-            all_directions_1.append(directions_1[~explained_before])
-            all_directions_2.append(directions_2[~explained_before])
+            n_fixels.append(n_f)
         else:
             no_overlap += 1
-
-        print("Computed pair {:4d}/{:4d}".format(b, len(bundles_1)), end="\r")
-
-    all_directions_1 = np.vstack(all_directions_1)
-    all_directions_2 = np.vstack(all_directions_2)
-    all_ijk = np.vstack(all_ijk)
-
-    n_segments = all_ijk.shape[0]
+        
+    fixel_directions_1 = np.vstack(fixel_directions_1)
+    fixel_directions_2 = np.vstack(fixel_directions_2)
+    fixel_ijk = np.vstack(fixel_ijk)
 
     ############################################################################
 
     print("Computing agreement ...")
 
+    n_fixels_sum = np.sum(n_fixels)
+
     block_size = get_blocksize(model, dwi_1.shape[-1])
 
     d_1 = np.zeros([
-        n_segments,
+        n_fixels_sum,
         block_size,  block_size, block_size,
         dwi_1.shape[-1]
     ])
     d_2 = np.zeros([
-        n_segments,
+        n_fixels_sum,
         block_size,  block_size, block_size,
         dwi_1.shape[-1]
     ])
-    i,j,k = all_ijk.T
+    i,j,k = fixel_ijk.T
     for idx in range(block_size**3):
         ii,jj,kk = np.unravel_index(idx, (block_size, block_size, block_size))
         d_1[:, ii, jj, kk, :] = dwi_1[i+ii-1, j+jj-1, k+kk-1, :]
@@ -207,42 +213,46 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     d_1 /= dnorm_1
     d_2 /= dnorm_2
 
-    model_inputs_1 = np.hstack([all_directions_1, d_1, dnorm_1])
-    model_inputs_2 = np.hstack([all_directions_2, d_2, dnorm_2])
+    model_inputs_1 = np.hstack([fixel_directions_1, d_1, dnorm_1])
+    model_inputs_2 = np.hstack([fixel_directions_2, d_2, dnorm_2])
 
     asum, amin, amean, amax = agreement_for(
         model,
         model_inputs_1,
         model_inputs_2
     )
+
     agreement = {"temperature": temperature}
-    agreement["n_bundles"] = len(bundles_1)
-    agreement["n_recognized"] = n_recognized
-    agreement["value"] = asum / n_fixels
+    agreement["model_path"] = model_path
+    agreement["n_bundles"] = n_bundles
+    agreement["value"] = asum / n_fixels_gt
     agreement["min"] = amin
     agreement["mean"] = amean
     agreement["max"] = amax
-    agreement["n_vox"] = n_segments
+    agreement["n_fixels_sum"] = n_fixels_sum
     agreement["n_wm"] = n_wm
+    agreement["n_fixels_gt"] = n_fixels_gt
+    agreement["marginal_bundles"] = "marginal_bundles"
     agreement["no_overlap"] = no_overlap
-    agreement["n_fixels"] = n_fixels
     agreement["dwi_1"] = dwi_path_1
     agreement["trk_1"] = trk_path_1
     agreement["dwi_2"] = dwi_path_2
     agreement["trk_2"] = trk_path_2
+    agreement["fixel_cnt_path"] = fixel_cnt_path
+    agreement["cluster_thresh"] = cluster_thresh
+    agreement["centroid_size"] = centroid_size
+    agreement["fixel_thresh"] = fixel_thresh
+    agreement["bundle_min_cnt"] = bundle_min_cnt
+    agreement["wm_path"] = wm_path
     agreement["ideal"] = ideal_agreement(temperature)
-    for k in range(already_explained_counter.max() + 1):
-        agreement["n_vox_with_{}_fixels".format(k)] = (
-            (already_explained_counter == k).sum()
-        )
-    agreement["cluster_sizes_1"] = bundles_1.clusters_sizes()
-    agreement["cluster_sizes_2"] = bundles_2.clusters_sizes()
-    ############################################################################
+    for k, cnt in zip(*np.unique(n_fixels, return_counts=True))
+        agreement["n_vox_with_{}_fixels".format(k)] = cnt
 
     save(agreement,
         "agreement_T={}.yml".format(temperature),
         os.path.dirname(model_path)
     )
+
     K.clear_session()
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
@@ -290,19 +300,19 @@ def agreement_for(model, inputs1, inputs2):
 def bundle_map(bundle, affine, img_shape):
 
     lin_T, offset = _mapping_to_voxel(affine)
-    counts = np.zeros(img_shape, 'int')
-    directions = np.zeros(img_shape + (3,))
+    counts = np.zeros(img_shape, np.uint16)
+    directions = np.zeros(img_shape + (3,), np.float16)
 
     for tract in bundle:
         inds = _to_voxel_coordinates(tract.streamline, lin_T, offset)
         i, j, k = inds.T
-        counts[i, j, k] += 1
-        directions[i, j, k] += tract.data_for_points["t"]
+        counts[i, j, k] += np.uint16(1)
+        directions[i, j, k] += tract.data_for_points["t"].astype(np.float16)
 
-    directions /= (np.expand_dims(counts, -1) + 10**-6)
+    directions /= (np.expand_dims(counts, -1) + np.float16(10**-6))
 
     directions /= (
-        np.linalg.norm(directions, axis=-1, keepdims=True) + 10**-6
+        np.linalg.norm(directions, axis=-1, keepdims=True) + np.float16(10**-6)
     )
 
     return counts, directions
@@ -322,6 +332,49 @@ def fvm_log_agreement(fvm1, fvm2):
         - fvm1._log_normalization()
         - fvm2._log_normalization()
     )
+
+
+def cluster_fixels(dir1, dir2, cnts1, cnts2, threshold):
+
+    dotprod1 = dir1.dot(dir1.T)
+    dotprod2 = dir2.dot(dir2.T)
+
+    similarity = np.absolute(dotprod1) - np.eye(len(dir1), dtype=np.float16)
+
+    imax, jmax = np.unravel_index(np.argmax(similarity), similarity.shape)
+
+    if similarity[imax, jmax] > threshold:
+        mean1 = (
+            dir1[imax] * cnts1[imax]
+            + np.sign(dotprod1[imax, jmax]) * dir1[jmax] * cnts1[jmax]
+        )
+        mean2 = (
+            dir2[imax] * cnts2[imax]
+            + np.sign(dotprod2[imax, jmax]) * dir2[jmax] * cnts2[jmax]
+        )
+
+        mean1 /= (np.linalg.norm(mean1) + np.float16(10**-6))
+        mean2 /= (np.linalg.norm(mean2) + np.float16(10**-6))
+
+        mean2 *= np.sign(mean1.dot(mean2.T))
+
+        mcount1 = cnts1[imax] + cnts1[jmax]
+        mcount2 = cnts2[imax] + cnts2[jmax]
+
+        dir1 = np.delete(dir1, [imax, jmax], axis=0)
+        cnts1 = np.delete(cnts1, [imax, jmax], axis=0)
+        dir2 = np.delete(dir2, [imax, jmax], axis=0)
+        cnts2 = np.delete(cnts2, [imax, jmax], axis=0)
+
+        dir1 = np.vstack([dir1, mean1])
+        cnts1 = np.vstack([cnts1.reshape(-1, 1), mcount1.reshape(-1, 1)])
+        dir2 = np.vstack([dir2, mean2])
+        cnts2 = np.vstack([cnts2.reshape(-1, 1), mcount2.reshape(-1, 1)])
+
+        return cluster_fixels(dir1, dir2, cnts1, cnts2, threshold)
+    else:
+        return dir1, dir2
+
 
 
 if __name__ == '__main__':
@@ -350,6 +403,12 @@ if __name__ == '__main__':
     parser.add_argument("--centroid_size", help="Length of fiber centroids",
         type=int, default=200)
 
+    parser.add_argument("--bmin", help="Minimal bundle size",
+        type=int, default=10, dest="bundle_min_cnt")
+
+    parser.add_argument("--fthresh", help="Fixel threshold (as fraction of pi)",
+        type=float, default=6., dest="fixel_thresh")
+
     args = parser.parse_args()
 
     if args.config_path is not None:
@@ -357,31 +416,35 @@ if __name__ == '__main__':
         config = load(args.config_path)
 
         gpu_queue = SimpleQueue()
-        for idx in get_gpus():
+        for idx in get_gpus()[:5]:
             gpu_queue.put(str(idx))
 
         try:
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
-                while gpu_queue.empty():
-                    sleep(10)
+                if any(t in model_path for t in ['0.0300', '0.0010', '0.0044', '0.0084']):
 
-                sleep(10)
-                p = Process(
-                    target=agreement,
-                    args=(model_path,
-                          pair[0]["dwi_path"],
-                          pair[0]["trk_path"],
-                          pair[1]["dwi_path"],
-                          pair[1]["trk_path"],
-                          config["wm_path"],
-                          config["fixel_cnt_path"],
-                          config["cluster_thresh"],
-                          config["centroid_size"],
-                          gpu_queue)
-                )
-                procs.append(p)
-                p.start()
+                    while gpu_queue.empty():
+                        sleep(10)
+
+                    sleep(10)
+                    p = Process(
+                        target=agreement,
+                        args=(model_path,
+                              pair[0]["dwi_path"],
+                              pair[0]["trk_path"],
+                              pair[1]["dwi_path"],
+                              pair[1]["trk_path"],
+                              config["wm_path"],
+                              config["fixel_cnt_path"],
+                              config["cluster_thresh"],
+                              config["centroid_size"],
+                              config["fixel_thresh"],
+                              config["bundle_min_cnt"],
+                              gpu_queue)
+                    )
+                    procs.append(p)
+                    p.start()
 
         except KeyboardInterrupt:
             pass
@@ -400,5 +463,7 @@ if __name__ == '__main__':
             args.wm_path,
             args.fixel_cnt_path,
             args.cluster_thresh,
+            args.fixel_thresh,
+            args.bundle_min_cnt,
             args.centroid_size
         )
