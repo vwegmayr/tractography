@@ -8,6 +8,7 @@ import subprocess
 from nibabel.streamlines.trk import TrkFile
 from pathos.pools import ProcessPool
 
+
 def trim(trk_path, min_length, max_length, fast=True, overwrite=False):
 
     if overwrite:

@@ -11,6 +11,7 @@ from tensorflow.keras.models import load_model
 from nibabel.streamlines.trk import TrkFile
 from nibabel.streamlines.tractogram import (Tractogram, PerArraySequenceDict)
 
+from resample_trk import maybe_add_tangent
 from models import MODELS
 from utils.training import setup_env, maybe_get_a_gpu, timestamp
 from utils.prediction import get_blocksize
@@ -55,12 +56,14 @@ def mark(config, gpu_queue=None):
 
     trk_file = nib.streamlines.load(config["trk_path"])
     tractogram = trk_file.tractogram
-    streamlines = tractogram.streamlines
 
     if "t" in tractogram.data_per_point:
         tangents = tractogram.data_per_point["t"]
     else:
-        raise ValueError("Fibers need to be resampled before marking!")
+        tractogram = maybe_add_tangent(config["trk_path"],
+                                       min_length=30,
+                                       max_length=200)
+        tangents = tractogram.data_per_point["t"]
 
     n_fibers = len(tractogram)
     fiber_lengths = np.array([len(t.streamline) for t in tractogram])
@@ -155,10 +158,9 @@ def mark(config, gpu_queue=None):
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
 
-
     kappa = [outputs[i, :fiber_lengths[i], 0].reshape(-1, 1)
         for i in range(n_fibers)]
-    log1p_kappa = [outputs[i, :fiber_lengths[i], 1].reshape(-1, 1) 
+    log1p_kappa = [outputs[i, :fiber_lengths[i], 1].reshape(-1, 1)
         for i in range(n_fibers)]
     log_prob = [outputs[i, :fiber_lengths[i], 2].reshape(-1, 1)
         for i in range(n_fibers)]
@@ -177,15 +179,13 @@ def mark(config, gpu_queue=None):
     other_data={}
     for key in list(trk_file.tractogram.data_per_point.keys()):
         if key not in ["kappa", "log1p_kappa", "log_prob", "log_prob_map",
-            "log_prob_sum", "log_prob_ratio"]:
+                       "log_prob_sum", "log_prob_ratio"]:
             other_data[key] = trk_file.tractogram.data_per_point[key]
 
     data_per_point = PerArraySequenceDict(
         n_rows=n_pts,
         kappa=kappa,
-        #log1p_kappa=log1p_kappa,
         log_prob=log_prob,
-        #log_prob_map=log_prob_map,
         log_prob_sum=log_prob_sum,
         log_prob_ratio=log_prob_ratio,
         **other_data
