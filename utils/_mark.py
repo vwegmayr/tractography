@@ -72,7 +72,7 @@ def mark(config, gpu_queue=None):
 
     # ==========================================================================
 
-    model_name = config["model_path"].split("/")[1]
+    model_name = config['model_name']
 
     if hasattr(MODELS[model_name], "custom_objects"):
         model = load_model(config["model_path"],
