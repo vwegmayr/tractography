@@ -3,6 +3,7 @@ import gc
 import argparse
 import datetime
 import yaml
+import git
 
 import nibabel as nib
 import numpy as np
@@ -23,11 +24,13 @@ from utils.prediction import Prior, Terminator, get_blocksize
 from utils.training import setup_env, maybe_get_a_gpu
 from utils._score import score
 
+from resample_trk import add_tangent
+
 import configs
 
 
 @setup_env
-def run_inference(config=None, gpu_queue=None):
+def run_inference(config=None, gpu_queue=None, return_to=None):
 
     """"""
     gpu_idx = -1
@@ -36,6 +39,21 @@ def run_inference(config=None, gpu_queue=None):
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_idx
     except Exception as e:
         print(str(e))
+
+    print("Loading Models...") #################################################
+
+    train_config_path = os.path.join(
+        os.path.dirname(config['model_path']), "config.yml")
+
+    model_name = load(train_config_path, "model_name")
+
+    if hasattr(MODELS[model_name], "custom_objects"):
+        model = load_model(config['model_path'],
+                           custom_objects=MODELS[model_name].custom_objects,
+                           compile=False)
+    else:
+        model = load_model(config['model_path'], compile=False)
+
 
     print("Loading DWI...") ####################################################
 
@@ -53,19 +71,7 @@ def run_inference(config=None, gpu_queue=None):
         else:
             return ijk.T
 
-    print("Loading Models...") #################################################
-
-    train_config_path = os.path.join(
-        os.path.dirname(config['model_path']), "config.yml")
-
-    model_name = load(train_config_path, "model_name")
-
-    if hasattr(MODELS[model_name], "custom_objects"):
-        model = load_model(config['model_path'],
-                           custom_objects=MODELS[model_name].custom_objects,
-                           compile=False)
-    else:
-        model = load_model(config['model_path'], compile=False)
+    ############################################################################
 
     terminator = Terminator(config['term_path'], config['thresh'])
 
@@ -171,7 +177,6 @@ def run_inference(config=None, gpu_queue=None):
     # Exclude unfinished fibers (finished = both ends finished)
     fibers = [fibers[gidx] for gidx in range(len(fibers)) if gidx not in fiber_idx]
 
-
     # Save Result
 
     fibers = [f[0] for f in fibers]
@@ -180,7 +185,13 @@ def run_inference(config=None, gpu_queue=None):
         streamlines=ArraySequence(fibers),
         affine_to_rasmm=np.eye(4)
     )
-    
+
+    tractogram = add_tangent(
+        tractogram,
+        min_length=config["min_length"],
+        max_length=config["max_length"]
+    )
+
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     out_dir = os.path.join(os.path.dirname(config["dwi_path"]),
         "predicted_fibers", timestamp)
@@ -194,7 +205,9 @@ def run_inference(config=None, gpu_queue=None):
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
     config['training_config'] = load(train_config_path)
-
+    repo = git.Repo(".")
+    commit = repo.head.commit
+    config['commit'] = str(commit)
     config_path = os.path.join(out_dir, "config.yml")
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
@@ -216,7 +229,13 @@ def run_inference(config=None, gpu_queue=None):
     if gpu_queue is not None:
         gpu_queue.put(gpu_idx)
 
-    return tractogram
+    if return_to is not None:
+        return_to[fiber_path] = {
+        "model_path": config["model_path"],
+        "dwi_path": config["dwi_path"]
+        }
+
+    return fiber_path
 
 
 def infere_batch_seed(xyz, prior, terminator, model,
@@ -270,9 +289,8 @@ def infere_batch_seed(xyz, prior, terminator, model,
         else:
             inputs = np.hstack([vout, d, dnorm])
 
-        outputs = model(inputs[:, np.newaxis, :])
-
         if 'Entrack' in model_name:
+            outputs = model(inputs[:, np.newaxis, :])
             if isinstance(outputs, list):
                 outputs = outputs[0]
 
@@ -281,7 +299,8 @@ def infere_batch_seed(xyz, prior, terminator, model,
             elif config['predict_fn'] == "sample":
                 vout = outputs.sample().numpy()
         else:
-            vout = outputs.squeeze()
+            vout = model.predict(inputs[:, np.newaxis, :]).squeeze()
+
         vout = np.squeeze(vout)
         rout = xyz[:, -1, :3] + step_size * vout
         rout = np.hstack([rout, np.ones((n_seeds, 1))]).reshape(-1, 1, 4)
@@ -436,8 +455,11 @@ def run_rnn_inference(config, gpu_queue=None):
     print("\nSaving {}".format(fiber_path))
     TrkFile(tractogram, seed_file.header).save(fiber_path)
 
+    repo = git.Repo(".")
+    commit = repo.head.commit
     config_path = os.path.join(out_dir, "config.yml")
     config['training_config'] = load(train_config_path)
+    config['commit'] = str(commit)
     print("Saving {}".format(config_path))
     with open(config_path, "w") as file:
         yaml.dump(config, file, default_flow_style=False)
@@ -450,6 +472,7 @@ def run_rnn_inference(config, gpu_queue=None):
             max_length=config["max_length"],
             python2=config['python2']
             )
+
     return tractogram
 
 

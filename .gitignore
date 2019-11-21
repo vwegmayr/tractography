@@ -1,5 +1,6 @@
 .DS_Store
 .idea/
+*.csv
 **/.ipynb_checkpoints/
 subjects/
 hcp_zips/

@@ -1,6 +1,7 @@
 import os
 import argparse
 import shutil
+import git
 
 from tensorflow.keras import optimizers as keras_optimizers
 
@@ -55,9 +56,20 @@ def train(config=None, gpu_queue=None):
 
         model.compile(optimizer)
 
-        samples_config = os.path.join(os.path.dirname(config['train_path']), 'config.yml')
-        samples_config = configs.load(samples_config)
-        config['input_sampels_config'] = samples_config
+        if isinstance(config['train_path'], list):
+            for i, subject in enumerate(config['train_path']):
+                samples_config = os.path.join(
+                    os.path.dirname(subject), 'config.yml')
+                samples_config = configs.load(samples_config)
+                config['input_sampels_config_{0}'.format(i)] = samples_config
+        else:
+            samples_config = os.path.join(
+                os.path.dirname(config['train_path']), 'config.yml')
+            samples_config = configs.load(samples_config)
+            config['input_sampels_config'] = samples_config
+        repo = git.Repo(".")
+        commit = repo.head.commit
+        config['commit'] = str(commit)
         configs.save(config)
 
         print("\nStart training...")
@@ -69,7 +81,9 @@ def train(config=None, gpu_queue=None):
             epochs=config["epochs"],
             shuffle=config["shuffle"],
             max_queue_size=4 * config["batch_size"],
-            verbose=1
+            verbose=1,
+            workers=3,
+            use_multiprocessing=True,
         )
     except KeyboardInterrupt:
         model.stop_training = True

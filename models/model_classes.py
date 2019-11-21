@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from os.path import isdir
 import tensorflow as tf
 import tensorflow_probability as tfp
 import numpy as np
@@ -132,8 +133,25 @@ class FvM(Model):
 
     def __init__(self, config):
 
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        if 'input_shape' in config:
+            input_shape = config['input_shape']
+        elif isinstance(config["train_path"], list) and \
+                not isdir(config['train_path'][0]):
+            input_shape = tuple(
+                np.load(config["train_path"][0], allow_pickle=True)[
+                    "input_shape"])
+        elif isinstance(config["train_path"], list) and \
+                isdir(config['train_path'][0]):
+            input_shape = tuple(
+                np.load(config["train_path"][0] + 'samples-0.npz',
+                        allow_pickle=True)["input_shape"])
+        elif isdir(config['train_path']):
+            input_shape = tuple(
+                np.load(config["train_path"] + 'samples-0.npz',
+                        allow_pickle=True)["input_shape"])
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
         inputs = Input(shape=input_shape, name="inputs")
 
@@ -217,12 +235,14 @@ class Trackifier(Model):
     summaries = "FvMSummaries"
 
     def __init__(self, config):
-
-        input_shape = tuple(
-            np.load(config["train_path"], allow_pickle=True)["input_shape"])
+        if isdir(config['train_path']):
+            input_shape = tuple(
+                np.load(config["train_path"] + 'samples-0.npz', allow_pickle=True)["input_shape"])
+        else:
+            input_shape = tuple(
+                np.load(config["train_path"], allow_pickle=True)["input_shape"])
 
         inputs = Input(shape=input_shape, name="inputs")
-
         self.keras = tf.keras.Model(
             inputs,
             self.model_fn(inputs, config["bvec_path"]),
@@ -239,7 +259,7 @@ class Trackifier(Model):
 
         x = Dense(1024, activation="relu")(x)
         x = Dense(1024, activation="relu")(x)
-        x = Dense(72, activation="softmax", name='output')(x)
+        x = Dense(108, activation="softmax", name='output')(x)
 
         return tfp.layers.DistributionLambda(
             make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
@@ -418,9 +438,18 @@ class Entrack(Model):
 
         if 'input_shape' in config:
             input_shape = config['input_shape']
-        elif isinstance(config["train_path"], list):
+        elif isinstance(config["train_path"], list) and \
+                not isdir(config['train_path'][0]):
             input_shape = tuple(
                 np.load(config["train_path"][0], allow_pickle=True)["input_shape"])
+        elif isinstance(config["train_path"], list) and \
+                isdir(config['train_path'][0]):
+            input_shape = tuple(
+                np.load(config["train_path"][0] + 'samples-0.npz',
+                        allow_pickle=True)["input_shape"])
+        elif isdir(config['train_path']):
+            input_shape = tuple(
+                np.load(config["train_path"] + 'samples-0.npz', allow_pickle=True)["input_shape"])
         else:
             input_shape = tuple(
                 np.load(config["train_path"], allow_pickle=True)["input_shape"])
