@@ -147,9 +147,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     fixel_ijk = []
     n_fixels = []
     no_overlap = 0
-    for v in range(np.prod(img_shape)):
-
-        vox = np.unravel_index(v, img_shape)
+    for vox in np.argwhere(wm_data > 0):
 
         matched = overlap[:, vox[0], vox[1], vox[2]] > 0
 
@@ -232,7 +230,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     agreement["n_fixels_sum"] = n_fixels_sum
     agreement["n_wm"] = n_wm
     agreement["n_fixels_gt"] = n_fixels_gt
-    agreement["marginal_bundles"] = "marginal_bundles"
+    agreement["marginal_bundles"] = marginal_bundles
     agreement["no_overlap"] = no_overlap
     agreement["dwi_1"] = dwi_path_1
     agreement["trk_1"] = trk_path_1
@@ -245,7 +243,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     agreement["bundle_min_cnt"] = bundle_min_cnt
     agreement["wm_path"] = wm_path
     agreement["ideal"] = ideal_agreement(temperature)
-    for k, cnt in zip(*np.unique(n_fixels, return_counts=True))
+    for k, cnt in zip(*np.unique(n_fixels, return_counts=True)):
         agreement["n_vox_with_{}_fixels".format(k)] = cnt
 
     save(agreement,
@@ -422,7 +420,9 @@ if __name__ == '__main__':
         try:
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
-                if any(t in model_path for t in ['0.0300', '0.0010', '0.0044', '0.0084']):
+                if any(t in model_path for t in [
+                    '0.0245', '0.0157', '0.0103', '0.0196', '0.0128',
+                    '0.0018', '0.0067', '0.0010', '0.0300', '0.0084']):
 
                     while gpu_queue.empty():
                         sleep(10)
