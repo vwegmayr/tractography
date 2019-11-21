@@ -1,4 +1,5 @@
 action: mark
+model_name: Entrack
 
 model_path: /local/home/vwegmayr/ijcv19/models/Entrack/conditional/2019-11-13/22:24:08/model_T=0.0023.h5
 dwi_path: subjects/ismrm_basic/fod_norm_125.nii.gz
