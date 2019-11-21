@@ -128,7 +128,9 @@ def run_inference(config=None, gpu_queue=None, return_to=None):
             if isinstance(outputs, list):
                 outputs = outputs[0]
 
-            if config['predict_fn'] == "mean":
+            if not 'predict_fn' in config:
+                v = outputs
+            elif config['predict_fn'] == "mean":
                 v = outputs.mean_direction.numpy()
                 # v = normalize(v)
             elif config['predict_fn'] == "sample":

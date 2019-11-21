@@ -12,7 +12,7 @@ opt_params:
 
 epochs: 100000
 batch_size: 512
-shuffle: True
+shuffle: False
 
 callbacks:
   RunningWindowLogger:

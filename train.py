@@ -41,7 +41,7 @@ def train(config=None, gpu_queue=None):
         configs.deep_update(config, {"train_seq": train_seq,
                                      "eval_seq": eval_seq})
 
-        checkpoints = out_dir + '/inter_model_{epoch:02d}-{val_loss:.2f}.h5'
+        checkpoints = out_dir + '/inter_model_{epoch:02d}-{val_loss:.4f}.h5'
         if "RNN" in config["model_name"]:
             configs.deep_update(config,
                                 {"reset_batches": train_seq.reset_batches})
@@ -80,9 +80,9 @@ def train(config=None, gpu_queue=None):
             validation_data=eval_seq,
             epochs=config["epochs"],
             shuffle=config["shuffle"],
-            max_queue_size=4 * config["batch_size"],
+            max_queue_size=2000,
             verbose=1,
-            workers=3,
+            workers=5,
             use_multiprocessing=True,
         )
     except KeyboardInterrupt:
