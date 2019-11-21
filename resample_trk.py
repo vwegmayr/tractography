@@ -134,7 +134,9 @@ def maybe_add_tangent(trk_path, min_length=0, max_length=1000):
 
     cache_path = trk_path[:-4] + "_t.trk"
 
+    print("check if resampled files already in directory: {0}".format(cache_path))
     if os.path.exists(cache_path):
+        print("Resampled fibers found in directory :) ")
         trk_file = nib.streamlines.load(cache_path)
         return trk_file.tractogram
     else:
