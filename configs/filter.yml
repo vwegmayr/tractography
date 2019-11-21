@@ -4,4 +4,4 @@ percentile: 10 # percentile
 apply_k: False
 
 score: True
-python2: /Users/amirreza/.virtualenvs/scoretract/bin/activate
+python2: /local/home/abahrein/.envs/scoring/bin/activate
