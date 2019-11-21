@@ -80,9 +80,9 @@ def train(config=None, gpu_queue=None):
             validation_data=eval_seq,
             epochs=config["epochs"],
             shuffle=config["shuffle"],
-            max_queue_size=4 * config["batch_size"],
+            max_queue_size=2000,
             verbose=1,
-            workers=3,
+            workers=5,
             use_multiprocessing=True,
         )
     except KeyboardInterrupt:
