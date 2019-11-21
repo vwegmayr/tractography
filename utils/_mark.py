@@ -58,8 +58,10 @@ def mark(config, gpu_queue=None):
     tractogram = trk_file.tractogram
 
     if "t" in tractogram.data_per_point:
+        print("Fibers are already resampled")
         tangents = tractogram.data_per_point["t"]
     else:
+        print("Fibers are not resampled. Resampling now ...")
         tractogram = maybe_add_tangent(config["trk_path"],
                                        min_length=30,
                                        max_length=200)
@@ -72,6 +74,7 @@ def mark(config, gpu_queue=None):
 
     # ==========================================================================
 
+    print("Loading model ...")
     model_name = config['model_name']
 
     if hasattr(MODELS[model_name], "custom_objects"):
