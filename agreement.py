@@ -120,19 +120,23 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         if (np.sum(is_from_1) > bundle_min_cnt and
             np.sum(is_from_2) > bundle_min_cnt):
 
-            count_masks_1[i], direction_masks_1[i] = (
-                bundle_map(b[is_from_1], affine_1, img_shape)
-            )
-            count_masks_2[i], direction_masks_2[i] = (
-                bundle_map(b[is_from_2], affine_2, img_shape)
-            )
+            bundle_map(b[is_from_1], affine_1, img_shape, 
+                dir_out=direction_masks_1[i], cnt_out=count_masks_1[i])
+            
+            bundle_map(b[is_from_2], affine_2, img_shape, 
+                dir_out=direction_masks_2[i], cnt_out=count_masks_2[i])
             
         else:
             marginal_bundles += 1
 
+        assert direction_masks_1.dtype.name == "float16"
+        assert direction_masks_2.dtype.name == "float16"
+        assert count_masks_1.dtype.name == "uint16"
+        assert count_masks_2.dtype.name == "uint16"
+
         print("Computed bundle {:3d}.".format(i), end="\r")
 
-        gc.collect()
+        #gc.collect()
 
     overlap = (
         (count_masks_1 > 0) * (count_masks_2 > 0) * np.expand_dims(wm_data > 0, 0)
@@ -169,8 +173,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
             fixel_directions_1.append(fixels1)
             fixel_directions_2.append(fixels2)
 
-            fixel_probs_1.append(f_cnts_1 / (1 + f_cnts_1))
-            fixel_probs_2.append(f_cnts_2 / (1 + f_cnts_2))
+            fixel_probs_1.append(f_cnts_1 / (np.float16(1) + f_cnts_1))
+            fixel_probs_2.append(f_cnts_2 / (np.float16(1) + f_cnts_2))
 
             fixel_ijk.append(np.tile(vox, (n_f, 1)))
 
@@ -183,6 +187,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     fixel_probs_1 = np.vstack(fixel_probs_1).reshape(-1)
     fixel_probs_2 = np.vstack(fixel_probs_2).reshape(-1)
     fixel_ijk = np.vstack(fixel_ijk)
+
+    #gc.collect()
 
     ############################################################################
 
@@ -316,27 +322,23 @@ def safe_sign(x):
     return np_sign
 
 
-def bundle_map(bundle, affine, img_shape):
+def bundle_map(bundle, affine, img_shape, dir_out, cnt_out):
 
     lin_T, offset = _mapping_to_voxel(affine)
-    counts = np.zeros(img_shape, np.uint16)
-    directions = np.zeros(img_shape + (3,), np.float16)
 
     for tract in bundle:
         inds = _to_voxel_coordinates(tract.streamline, lin_T, offset)
         i, j, k = inds.T
-        counts[i, j, k] += np.uint16(1)
+        cnt_out[i, j, k] += np.uint16(1)
         vecs = tract.data_for_points["t"].astype(np.float16)
-        directions[i, j, k] += vecs * safe_sign(
-            np.sum(directions[i, j, k] * vecs, axis=1, keepdims=True))
+        dir_out[i, j, k] += vecs * safe_sign(
+            np.sum(dir_out[i, j, k] * vecs, axis=1, keepdims=True))
 
-    directions /= (np.expand_dims(counts, -1) + np.float16(10**-6))
+    dir_out /= (np.expand_dims(cnt_out, -1) + np.float16(10**-6))
 
-    directions /= (
-        np.linalg.norm(directions, axis=-1, keepdims=True) + np.float16(10**-6)
+    dir_out /= (
+        np.linalg.norm(dir_out, axis=-1, keepdims=True) + np.float16(10**-6)
     )
-
-    return counts, directions
 
 
 def fvm_log_agreement(fvm1, fvm2):
@@ -436,35 +438,35 @@ if __name__ == '__main__':
         config = load(args.config_path)
 
         gpu_queue = SimpleQueue()
-        for idx in get_gpus()[:5]:
+        for idx in get_gpus()[:4]:
             gpu_queue.put(str(idx))
 
         try:
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
-                #if any(t in model_path for t in []):
+                if any(t in model_path for t in ['0.0010', '0.0300']):
 
-                while gpu_queue.empty():
+                    while gpu_queue.empty():
+                        sleep(10)
+
+                    p = Process(
+                        target=agreement,
+                        args=(model_path,
+                              pair[0]["dwi_path"],
+                              pair[0]["trk_path"],
+                              pair[1]["dwi_path"],
+                              pair[1]["trk_path"],
+                              config["agreement"]["wm_path"],
+                              config["agreement"]["fixel_cnt_path"],
+                              config["agreement"]["cluster_thresh"],
+                              config["agreement"]["centroid_size"],
+                              config["agreement"]["fixel_thresh"],
+                              config["agreement"]["bundle_min_cnt"],
+                              gpu_queue)
+                    )
+                    procs.append(p)
+                    p.start()
                     sleep(10)
-
-                p = Process(
-                    target=agreement,
-                    args=(model_path,
-                          pair[0]["dwi_path"],
-                          pair[0]["trk_path"],
-                          pair[1]["dwi_path"],
-                          pair[1]["trk_path"],
-                          config["agreement"]["wm_path"],
-                          config["agreement"]["fixel_cnt_path"],
-                          config["agreement"]["cluster_thresh"],
-                          config["agreement"]["centroid_size"],
-                          config["agreement"]["fixel_thresh"],
-                          config["agreement"]["bundle_min_cnt"],
-                          gpu_queue)
-                )
-                procs.append(p)
-                p.start()
-                sleep(10)
 
         except KeyboardInterrupt:
             pass
