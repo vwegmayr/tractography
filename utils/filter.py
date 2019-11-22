@@ -5,6 +5,7 @@ import nibabel as nib
 import numpy as np
 
 from utils.config import load
+from utils._score import score
 from nibabel.streamlines.trk import TrkFile
 
 
@@ -53,6 +54,14 @@ def filter_fibers(config):
 
     print("Saving {}".format(filtered_path))
     TrkFile(tractogram, trk_file.header).save(filtered_path)
+
+    if config["score"]:
+        score(
+            filtered_path,
+            out_dir=os.path.join(out_dir, "scorings"),
+            no_trim=True,
+            python2=config['python2']
+            )
 
 
 if __name__ == '__main__':

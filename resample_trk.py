@@ -134,7 +134,9 @@ def maybe_add_tangent(trk_path, min_length=0, max_length=1000):
 
     cache_path = trk_path[:-4] + "_t.trk"
 
+    print("check if resampled files already in directory: {0}".format(cache_path))
     if os.path.exists(cache_path):
+        print("Resampled fibers found in directory :) ")
         trk_file = nib.streamlines.load(cache_path)
         return trk_file.tractogram
     else:
@@ -151,12 +153,11 @@ def maybe_add_tangent(trk_path, min_length=0, max_length=1000):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Resample streamlines, and "
-        "compute local geometry data."
-        )
+    parser = argparse.ArgumentParser(
+        description="Resample streamlines, and compute local geometry data.")
     parser.add_argument("trk_path", help="Path to .trk file", type=str)
 
-    parser.add_argument("--npts", default="auto", # or "same"
+    parser.add_argument("--npts", default="auto",  # or "same"
         help="Number of resampling points, i.e. fiber length in points."
         )
     parser.add_argument("--smoothing", default=5, type=float,

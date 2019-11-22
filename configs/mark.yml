@@ -1,5 +1,6 @@
 action: mark
+model_name: Entrack
 
-model_path: models/Entrack/conditional/2019-11-14/15:21:05/final_model.h5
-dwi_path: subjects/ismrm_gt/fod_norm_125.nii.gz
-trk_path: subjects/ismrm_gt/predicted_fibers/2019-11-14-17:10:26/2019-11-14-17:10:26_s=0.0_n=same.trk
+model_path: /local/home/vwegmayr/ijcv19/models/Entrack/conditional/2019-11-13/22:24:08/model_T=0.0023.h5
+dwi_path: subjects/ismrm_basic/fod_norm_125.nii.gz
+trk_path: subjects/ismrm_basic/predicted_fibers/2019-11-14-09:36:59/2019-11-14-09:36:59_30mm200.trk
