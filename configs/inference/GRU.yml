@@ -1,6 +1,6 @@
 model_name: RNNGRU
 
-model_path: models/RNNGRU/2019-11-19/15:33:26/final_model.h5  # RNN
+model_path: models/RNNGRU/2019-11-19/15:33:26/final_model.h5  # GRU
 dwi_path: subjects/ismrm_basic/fod_norm_125.nii.gz
 prior_path: subjects/ismrm_basic/tensor_V1_125.nii.gz
 seed_path: scoring/scoring_data/seeds/seeds_from_wm_100.trk
