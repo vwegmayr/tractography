@@ -32,7 +32,6 @@ from utils._dispatch import get_gpus
 
 from configs import save
 
-
 @setup_env
 def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     wm_path, fixel_cnt_path, cluster_thresh, centroid_size, fixel_thresh,
@@ -121,20 +120,23 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         if (np.sum(is_from_1) > bundle_min_cnt and
             np.sum(is_from_2) > bundle_min_cnt):
 
-            counts_1, directions_1 = bundle_map(b[is_from_1], affine_1, img_shape)
-            counts_2, directions_2 = bundle_map(b[is_from_2], affine_2, img_shape)
-
-            direction_masks_1[i] = directions_1.copy("K")
-            direction_masks_2[i] = directions_2.copy("K")
-
-            count_masks_1[i] = counts_1.copy("K")
-            count_masks_2[i] = counts_2.copy("K")
+            bundle_map(b[is_from_1], affine_1, img_shape, 
+                dir_out=direction_masks_1[i], cnt_out=count_masks_1[i])
+            
+            bundle_map(b[is_from_2], affine_2, img_shape, 
+                dir_out=direction_masks_2[i], cnt_out=count_masks_2[i])
+            
         else:
             marginal_bundles += 1
 
+        assert direction_masks_1.dtype.name == "float16"
+        assert direction_masks_2.dtype.name == "float16"
+        assert count_masks_1.dtype.name == "uint16"
+        assert count_masks_2.dtype.name == "uint16"
+
         print("Computed bundle {:3d}.".format(i), end="\r")
 
-        gc.collect()
+        #gc.collect()
 
     overlap = (
         (count_masks_1 > 0) * (count_masks_2 > 0) * np.expand_dims(wm_data > 0, 0)
@@ -144,12 +146,12 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     fixel_directions_1 = []
     fixel_directions_2 = []
+    fixel_probs_1 = []
+    fixel_probs_2 = []
     fixel_ijk = []
     n_fixels = []
     no_overlap = 0
-    for v in range(np.prod(img_shape)):
-
-        vox = np.unravel_index(v, img_shape)
+    for vox in np.argwhere(wm_data > 0):
 
         matched = overlap[:, vox[0], vox[1], vox[2]] > 0
 
@@ -161,7 +163,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
             dir_2 = direction_masks_2[matched, vox[0], vox[1], vox[2], :]
             cnts_2 = count_masks_2[matched, vox[0], vox[1], vox[2]]
 
-            fixels1, fixels2 = cluster_fixels(
+            fixels1, fixels2, f_cnts_1, f_cnts_2 = cluster_fixels(
                 dir_1, dir_2, cnts_1, cnts_2,
                 threshold=np.cos(np.pi/fixel_thresh)
             )
@@ -170,15 +172,23 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
             fixel_directions_1.append(fixels1)
             fixel_directions_2.append(fixels2)
+
+            fixel_probs_1.append(f_cnts_1 / (np.float16(1) + f_cnts_1))
+            fixel_probs_2.append(f_cnts_2 / (np.float16(1) + f_cnts_2))
+
             fixel_ijk.append(np.tile(vox, (n_f, 1)))
 
             n_fixels.append(n_f)
         else:
             no_overlap += 1
-        
+
     fixel_directions_1 = np.vstack(fixel_directions_1)
     fixel_directions_2 = np.vstack(fixel_directions_2)
+    fixel_probs_1 = np.vstack(fixel_probs_1).reshape(-1)
+    fixel_probs_2 = np.vstack(fixel_probs_2).reshape(-1)
     fixel_ijk = np.vstack(fixel_ijk)
+
+    #gc.collect()
 
     ############################################################################
 
@@ -219,7 +229,9 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     asum, amin, amean, amax = agreement_for(
         model,
         model_inputs_1,
-        model_inputs_2
+        model_inputs_2,
+        fixel_probs_1,
+        fixel_probs_2
     )
 
     agreement = {"temperature": temperature}
@@ -232,7 +244,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     agreement["n_fixels_sum"] = n_fixels_sum
     agreement["n_wm"] = n_wm
     agreement["n_fixels_gt"] = n_fixels_gt
-    agreement["marginal_bundles"] = "marginal_bundles"
+    agreement["marginal_bundles"] = marginal_bundles
     agreement["no_overlap"] = no_overlap
     agreement["dwi_1"] = dwi_path_1
     agreement["trk_1"] = trk_path_1
@@ -245,7 +257,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     agreement["bundle_min_cnt"] = bundle_min_cnt
     agreement["wm_path"] = wm_path
     agreement["ideal"] = ideal_agreement(temperature)
-    for k, cnt in zip(*np.unique(n_fixels, return_counts=True))
+    for k, cnt in zip(*np.unique(n_fixels, return_counts=True)):
         agreement["n_vox_with_{}_fixels".format(k)] = cnt
 
     save(agreement,
@@ -264,14 +276,14 @@ def logZ(kappa):
 
 
 def ideal_agreement(T):
-    return np.log(4*np.pi) + logZ(2/T) - 2*logZ(1/T)
+    return (np.log(4*np.pi) + logZ(2/T) - 2*logZ(1/T)) / np.log(2)
 
 
-def agreement_for(model, inputs1, inputs2):
+def agreement_for(model, inputs1, inputs2, fixel_probs_1, fixel_probs_2):
 
     n_segments = len(inputs1)
 
-    all_fvm_log_agreements = np.zeros(n_segments)
+    log_fvm = np.zeros(n_segments)
 
     chunk = 2**15  # 32768
     n_chunks = np.ceil(n_segments / chunk).astype(int)
@@ -283,39 +295,50 @@ def agreement_for(model, inputs1, inputs2):
         fvm_pred_2, _ = model(
             inputs2[c * chunk : (c + 1) * chunk])
 
-        all_fvm_log_agreements[c * chunk : (c + 1) * chunk] = (
+        log_fvm[c * chunk : (c + 1) * chunk] = (
             fvm_log_agreement(fvm_pred_1, fvm_pred_2)
         )
 
-    all_fvm_log_agreements = np.maximum(0, all_fvm_log_agreements)
+    agreements = np.log2(
+        4 * np.pi * fixel_probs_1 * fixel_probs_2 * np.exp(log_fvm) +
+        (1 - fixel_probs_1) * (1 - fixel_probs_2) +
+        (1 - fixel_probs_1) * fixel_probs_2 +
+        (1 - fixel_probs_2) * fixel_probs_1
+    )
+
+    agreements = np.maximum(agreements, 0)
 
     return (
-        all_fvm_log_agreements.sum(),
-        all_fvm_log_agreements.min(),
-        all_fvm_log_agreements.mean(),
-        all_fvm_log_agreements.max()
+        agreements.sum(),
+        agreements.min(),
+        agreements.mean(),
+        agreements.max()
     )
 
 
-def bundle_map(bundle, affine, img_shape):
+def safe_sign(x):
+    np_sign = np.sign(x)
+    np_sign += (x==0)
+    return np_sign
+
+
+def bundle_map(bundle, affine, img_shape, dir_out, cnt_out):
 
     lin_T, offset = _mapping_to_voxel(affine)
-    counts = np.zeros(img_shape, np.uint16)
-    directions = np.zeros(img_shape + (3,), np.float16)
 
     for tract in bundle:
         inds = _to_voxel_coordinates(tract.streamline, lin_T, offset)
         i, j, k = inds.T
-        counts[i, j, k] += np.uint16(1)
-        directions[i, j, k] += tract.data_for_points["t"].astype(np.float16)
+        cnt_out[i, j, k] += np.uint16(1)
+        vecs = tract.data_for_points["t"].astype(np.float16)
+        dir_out[i, j, k] += vecs * safe_sign(
+            np.sum(dir_out[i, j, k] * vecs, axis=1, keepdims=True))
 
-    directions /= (np.expand_dims(counts, -1) + np.float16(10**-6))
+    dir_out /= (np.expand_dims(cnt_out, -1) + np.float16(10**-6))
 
-    directions /= (
-        np.linalg.norm(directions, axis=-1, keepdims=True) + np.float16(10**-6)
+    dir_out /= (
+        np.linalg.norm(dir_out, axis=-1, keepdims=True) + np.float16(10**-6)
     )
-
-    return counts, directions
 
 
 def fvm_log_agreement(fvm1, fvm2):
@@ -327,7 +350,6 @@ def fvm_log_agreement(fvm1, fvm2):
             axis=1)
     )
     return (
-        np.log(4*np.pi) + 
         fvm12._log_normalization()
         - fvm1._log_normalization()
         - fvm2._log_normalization()
@@ -346,17 +368,17 @@ def cluster_fixels(dir1, dir2, cnts1, cnts2, threshold):
     if similarity[imax, jmax] > threshold:
         mean1 = (
             dir1[imax] * cnts1[imax]
-            + np.sign(dotprod1[imax, jmax]) * dir1[jmax] * cnts1[jmax]
+            + safe_sign(dotprod1[imax, jmax]) * dir1[jmax] * cnts1[jmax]
         )
         mean2 = (
             dir2[imax] * cnts2[imax]
-            + np.sign(dotprod2[imax, jmax]) * dir2[jmax] * cnts2[jmax]
+            + safe_sign(dotprod2[imax, jmax]) * dir2[jmax] * cnts2[jmax]
         )
 
         mean1 /= (np.linalg.norm(mean1) + np.float16(10**-6))
         mean2 /= (np.linalg.norm(mean2) + np.float16(10**-6))
 
-        mean2 *= np.sign(mean1.dot(mean2.T))
+        mean2 *= safe_sign(mean1.dot(mean2.T))
 
         mcount1 = cnts1[imax] + cnts1[jmax]
         mcount2 = cnts2[imax] + cnts2[jmax]
@@ -373,7 +395,7 @@ def cluster_fixels(dir1, dir2, cnts1, cnts2, threshold):
 
         return cluster_fixels(dir1, dir2, cnts1, cnts2, threshold)
     else:
-        return dir1, dir2
+        return dir1, dir2, cnts1.reshape(-1, 1), cnts2.reshape(-1, 1)
 
 
 
@@ -416,18 +438,17 @@ if __name__ == '__main__':
         config = load(args.config_path)
 
         gpu_queue = SimpleQueue()
-        for idx in get_gpus()[:5]:
+        for idx in get_gpus()[:4]:
             gpu_queue.put(str(idx))
 
         try:
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
-                if any(t in model_path for t in ['0.0300', '0.0010', '0.0044', '0.0084']):
+                if any(t in model_path for t in ['0.0010', '0.0300']):
 
                     while gpu_queue.empty():
                         sleep(10)
 
-                    sleep(10)
                     p = Process(
                         target=agreement,
                         args=(model_path,
@@ -435,16 +456,17 @@ if __name__ == '__main__':
                               pair[0]["trk_path"],
                               pair[1]["dwi_path"],
                               pair[1]["trk_path"],
-                              config["wm_path"],
-                              config["fixel_cnt_path"],
-                              config["cluster_thresh"],
-                              config["centroid_size"],
-                              config["fixel_thresh"],
-                              config["bundle_min_cnt"],
+                              config["agreement"]["wm_path"],
+                              config["agreement"]["fixel_cnt_path"],
+                              config["agreement"]["cluster_thresh"],
+                              config["agreement"]["centroid_size"],
+                              config["agreement"]["fixel_thresh"],
+                              config["agreement"]["bundle_min_cnt"],
                               gpu_queue)
                     )
                     procs.append(p)
                     p.start()
+                    sleep(10)
 
         except KeyboardInterrupt:
             pass

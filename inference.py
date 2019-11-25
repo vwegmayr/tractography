@@ -217,10 +217,9 @@ def run_inference(config=None, gpu_queue=None, return_to=None):
         score(
             fiber_path,
             out_dir=os.path.join(out_dir, "scorings"),
-            min_length=config["min_length"],
-            max_length=config["max_length"],
+            no_trim=True,
+            blocking=False,
             python2=config['python2'],
-            blocking=False
             )
         
     # Return GPU

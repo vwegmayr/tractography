@@ -10,6 +10,7 @@ from agreement import agreement
 from inference import run_inference
 from utils._dispatch import get_gpus
 from utils.config import load
+from utils.training import timestamp
 from configs import save
 
 
@@ -21,7 +22,7 @@ def find_optimal_temperature(config):
     dwi_path_2 = config["inference"]["dwi_path"].format("retest")
 
     gpu_queue = SimpleQueue()
-    for idx in get_gpus():
+    for idx in get_gpus()[:5]:
         gpu_queue.put(str(idx))
 
     procs=[]
@@ -40,7 +41,8 @@ def find_optimal_temperature(config):
                 parse(run_config, "term_path", j)
                 parse(run_config, "seed_path", j)
                 while gpu_queue.empty():
-                    sleep(2)
+                    sleep(10)
+
                 p = Process(
                     target=run_inference,
                     args=(run_config, gpu_queue, predictions)
@@ -48,27 +50,21 @@ def find_optimal_temperature(config):
                 p.start()
                 procs.append(p)
                 print("Launched {}: {}".format(mp.split("/")[-1], j))
-                sleep(2)
+                sleep(10)
+
     except KeyboardInterrupt:
+        pass
+    finally:
         for p in procs:
             p.join()
             while p.exitcode is None:
                 sleep(0.1)
 
-    while len(predictions) < 2 * len(model_paths):
-        sleep(1)
-
     pred_pairs = group_by_model(predictions)
+    config["pred_pairs"] = pred_pairs
 
-    agreement_config = {}
-    agreement_config["pred_pairs"] = deepcopy(pred_pairs)
-    agreement_config["wm_path"] = config["wm_path"]
-    agreement_config["fixel_cnt_path"] = config["fixel_cnt_path"]
-    agreement_config["cluster_thresh"] = config["cluster_thresh"]
-    agreement_config["centroid_size"] = config["centroid_size"]
-
-    save(agreement_config,
-        name="agreement_config.yml",
+    save(config,
+        name="opT_{}.yml".format(timestamp()),
         out_dir=os.path.dirname(config["model_glob"])
     )
 
@@ -77,7 +73,8 @@ def find_optimal_temperature(config):
         procs=[]
         for model_path, pair in pred_pairs.items():
             while gpu_queue.empty():
-                sleep(2)
+                sleep(10)
+
             p = Process(
                 target=agreement,
                 args=(model_path,
@@ -85,15 +82,18 @@ def find_optimal_temperature(config):
                       pair[0]["trk_path"],
                       pair[1]["dwi_path"],
                       pair[1]["trk_path"],
-                      config["wm_path"],
-                      config["fixel_cnt_path"],
-                      config["cluster_thresh"],
-                      config["centroid_size"],
+                      config["agreement"]["wm_path"],
+                      config["agreement"]["fixel_cnt_path"],
+                      config["agreement"]["cluster_thresh"],
+                      config["agreement"]["centroid_size"],
+                      config["agreement"]["fixel_thresh"],
+                      config["agreement"]["bundle_min_cnt"],
                       gpu_queue)
             )
             procs.append(p)
             p.start()
-            sleep(2)
+            sleep(10)
+
     except KeyboardInterrupt:
         pass
     finally:

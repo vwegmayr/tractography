@@ -34,7 +34,7 @@ def priority_print(msg):
 
 
 def get_gpus():
-    return getAvailable(limit=8, maxLoad=10**-1, maxMemory=10**-1)
+    return getAvailable(limit=8, maxLoad=10**-6, maxMemory=10**-1)
 
 
 def n_gpus():
@@ -83,13 +83,17 @@ if __name__ == '__main__':
 
         try:
             #blockPrint()
-            while len(configurations) > 0:
-                while not gpu_queue.empty() and len(configurations) > 0:
-                    p = Process(target=target, args=(configurations.pop(), gpu_queue))
-                    procs.append(p)
-                    p.start()
-                    sleep(3) # Wait to make sure the timestamp is different
-                sleep(check_interval)
+            for c in configurations:
+
+                #if any(t in c["model_path"] for t in []):
+                while gpu_queue.empty():
+                    sleep(10)
+
+                p = Process(target=target, args=(c, gpu_queue))
+                procs.append(p)
+                p.start()
+                sleep(10)
+
 
         except KeyboardInterrupt:
             for p in procs:
@@ -126,10 +130,15 @@ if __name__ == '__main__':
             #blockPrint()
             while len(configurations) > 0:
                 while not gpu_queue.empty() and len(configurations) > 0:
-                    p = Process(target=mark, args=(configurations.pop(), gpu_queue))
+                    p = Process(
+                        target=mark,
+                        args=(
+                            configurations.pop(),
+                            gpu_queue)
+                        )
                     procs.append(p)
                     p.start()
-                    sleep(3) # Wait to make sure the timestamp is different
+                    sleep(10) # Wait to make sure the timestamp is different
                 sleep(check_interval)
 
         except KeyboardInterrupt:
