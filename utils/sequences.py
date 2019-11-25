@@ -37,6 +37,7 @@ class Samples(Sequence):
         elif isinstance(config['sample_path'], list) and \
                 isdir(config['sample_path'][0]):
             self.samples = {}
+            self.n_samples = None
             self.sample_files = [join(subject, f)
                                  for subject in config['sample_path']
                                  for f in listdir(subject)
@@ -47,7 +48,6 @@ class Samples(Sequence):
             for sample in self.sample_files:
                 sample_i = np.load(sample, allow_pickle=True)
                 sample_i_shape = sample_i['sample_shape']
-                self.n_samples += sample_i["n_samples"]
                 self.sample_shapes.append(sample_i_shape)
 
         elif isdir(config['sample_path']):
