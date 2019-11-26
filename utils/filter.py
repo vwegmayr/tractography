@@ -13,9 +13,9 @@ from nibabel.streamlines.trk import TrkFile
 FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
 
 
-def filter_fibers(config, name=''):
+def filter_fibers(config, name='filter_run'):
 
-    print("Loading fibers ...")
+    print("{0}: Loading fibers ...".format(name))
     trk_file = nib.streamlines.load(config["trk_path"])
 
     tractogram = trk_file.tractogram
@@ -27,7 +27,7 @@ def filter_fibers(config, name=''):
     keep = list(range(len(tractogram)))
 
     if config["filter_name"] != "none":
-        print("filter based on {0}...".format(config["filter_name"]))
+        print("{0}: filter based on {1}...".format(name, config["filter_name"]))
         values = [t[0,0] for t in tractogram.data_per_point[config["filter_name"]]]
         threshold_value = np.percentile(values, config["percentile"])
 
@@ -36,7 +36,7 @@ def filter_fibers(config, name=''):
                 keep.remove(i)
 
     if "apply_k" in config and config["apply_k"]:
-        print("filter based on curvatures...")
+        print("{0}: filter based on curvatures...".format(name))
         curvatures = [t[0,0] for t in tractogram.data_per_point["k"]]
         k_threshold = np.percentile(curvatures, config["percentile"])
         for i, tract in enumerate(tractogram.data_per_point["k"]):
@@ -54,7 +54,7 @@ def filter_fibers(config, name=''):
         config["filter_name"], config["percentile"],
         "t" if config["apply_k"] else "f"))
 
-    print("Saving {}".format(filtered_path))
+    print("{0}: Saving {1}".format(name, filtered_path))
     TrkFile(tractogram, trk_file.header).save(filtered_path)
 
     if config["score"]:
