@@ -71,10 +71,27 @@ if __name__ == '__main__':
 
     parser.add_argument("config_path", type=str)
 
+    parser.add_argument('--percentiles', nargs='+', type=int,
+                        help="list of percentiles to try")
+
+    parser.add_argument('--criteria', nargs='+', type=str,
+                        help="list of criteria to try")
+
     args = parser.parse_args()
 
     config = load(args.config_path)
 
-    assert config["filter_name"] in FILTERS
+    if args.percentiles is None:
+        args.percentiles = [config['percentile']]
 
-    filter_fibers(config)
+    if args.criteria is None:
+        args.criteria = [config['filter_name']]
+
+    for criteria in args.criteria:
+        for percentile in args.percentiles:
+
+            config["percentile"] = percentile
+            config["filter_name"] = criteria
+
+            assert config["filter_name"] in FILTERS
+            filter_fibers(config)
