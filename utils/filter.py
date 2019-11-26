@@ -15,7 +15,6 @@ FILTERS = ["log_prob_ratio", "log_prob_sum", "none"]
 def filter_fibers(config):
 
     print("Loading fibers ...")
-
     trk_file = nib.streamlines.load(config["trk_path"])
 
     tractogram = trk_file.tractogram
@@ -27,21 +26,23 @@ def filter_fibers(config):
     keep = list(range(len(tractogram)))
 
     if config["filter_name"] != "none":
+        print("filter based on {0}...".format(config["filter_name"]))
         values = [t[0,0] for t in tractogram.data_per_point[config["filter_name"]]]
         threshold_value = np.percentile(values, config["percentile"])
 
         for i, tract in enumerate(tractogram.data_per_point[config["filter_name"]]):
-            if tract[0,0] < threshold_value:
+            if tract[0, 0] < threshold_value:
                 keep.remove(i)
 
     if "apply_k" in config and config["apply_k"]:
+        print("filter based on curvatures...")
         curvatures = [t[0,0] for t in tractogram.data_per_point["k"]]
         k_threshold = np.percentile(curvatures, config["percentile"])
         for i, tract in enumerate(tractogram.data_per_point["k"]):
-            if tract[0,0] > k_threshold:
+            if tract[0, 0] > k_threshold:
                 try:
                     keep.remove(i)
-                except ValueError: # already removed before
+                except ValueError:  # already removed before
                     pass
 
     tractogram = tractogram[keep]
