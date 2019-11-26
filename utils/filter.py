@@ -100,3 +100,4 @@ if __name__ == '__main__':
 
             name = 'p_{0}-f_{1}'.format(percentile, criteria)
             p = Process(target=filter_fibers, args=(config, name))
+            p.start()
