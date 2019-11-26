@@ -90,7 +90,7 @@ class FvMSamples(Samples):
             self.inputs = None
             self.outgoing = None
 
-            # Cut the data to fir the batch size
+            # Cut the data to fit the batch size
             self.new_shapes = self.inputs = \
                 [(batch_shape[0] - (batch_shape[0] % self.batch_size), batch_shape[1])
                  if batch_shape[0] > self.batch_size else (batch_shape[0], batch_shape[1])
