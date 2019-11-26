@@ -28,11 +28,11 @@ def filter_fibers(config, name='filter_run'):
 
     if config["filter_name"] != "none":
         print("{0}: filter based on {1}...".format(name, config["filter_name"]))
-        values = min([t[0,0] for t in tractogram.data_per_point[config["filter_name"]]])
+        values = [t[0,0] for t in tractogram.data_per_point[config["filter_name"]]]
         threshold_value = np.percentile(values, config["percentile"])
 
         for i, tract in enumerate(tractogram.data_per_point[config["filter_name"]]):
-            if tract[0, 0] < threshold_value:
+            if min(tract)[0] < threshold_value:
                 keep.remove(i)
 
     if "apply_k" in config and config["apply_k"]:
