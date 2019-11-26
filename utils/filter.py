@@ -13,7 +13,7 @@ from nibabel.streamlines.trk import TrkFile
 FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
 
 
-def filter_fibers(config):
+def filter_fibers(config, name=''):
 
     print("Loading fibers ...")
     trk_file = nib.streamlines.load(config["trk_path"])
@@ -60,7 +60,7 @@ def filter_fibers(config):
     if config["score"]:
         score(
             filtered_path,
-            out_dir=os.path.join(out_dir, "scorings"),
+            out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
             no_trim=True,
             python2=config['python2']
             )
@@ -98,4 +98,5 @@ if __name__ == '__main__':
 
             assert config["filter_name"] in FILTERS
 
-            p = Process(target=filter_fibers, args=config)
+            name = 'p_{0}-f_{1}'.format(percentile, criteria)
+            p = Process(target=filter_fibers, args=(config, name))
