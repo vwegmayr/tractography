@@ -1,5 +1,6 @@
 import os
 import argparse
+from multiprocessing import Process
 
 import nibabel as nib
 import numpy as np
@@ -88,10 +89,13 @@ if __name__ == '__main__':
         args.criteria = [config['filter_name']]
 
     for criteria in args.criteria:
+        print("Filtering with criteria {0}".format(criteria))
         for percentile in args.percentiles:
+            print("Filtering with percentile {0}".format(percentile))
 
             config["percentile"] = percentile
             config["filter_name"] = criteria
 
             assert config["filter_name"] in FILTERS
-            filter_fibers(config)
+
+            p = Process(target=filter_fibers, args=config)
