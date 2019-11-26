@@ -9,7 +9,7 @@ from utils._score import score
 from nibabel.streamlines.trk import TrkFile
 
 
-FILTERS = ["log_prob_ratio", "log_prob_sum", "none"]
+FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
 
 
 def filter_fibers(config):
