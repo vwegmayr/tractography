@@ -42,7 +42,7 @@ def track_vis_filter(config, name='filter_run'):
 def filter_fibers(config, name='filter_run'):
 
     print("{0}: Loading fibers ...".format(name))
-    trk_file = nib.streamlines.load(config["trk_path"])
+    trk_file = nib.streamlines.load(config["marked_trk_path"])
 
     tractogram = trk_file.tractogram
 
@@ -74,7 +74,7 @@ def filter_fibers(config, name='filter_run'):
 
     tractogram = tractogram[keep]
 
-    out_dir = os.path.join(os.path.dirname(config["trk_path"]))
+    out_dir = os.path.join(os.path.dirname(config["marked_trk_path"]))
 
     filtered_path = os.path.join(out_dir, "{}_{}_fib_k={}.trk".format(
         config["filter_name"], config["percentile"],
@@ -94,7 +94,7 @@ def filter_fibers(config, name='filter_run'):
 
 def filter_bundles(config, name='filter_run'):
     print("{0}: Loading fibers ...".format(name))
-    trk_file = nib.streamlines.load(config["trk_path"])
+    trk_file = nib.streamlines.load(config["marked_trk_path"])
 
     tractogram = trk_file.tractogram
 
@@ -132,7 +132,7 @@ def filter_bundles(config, name='filter_run'):
     tractogram = tractogram[keep]
     print(f"{name}: {len(filtered_bundles)} bundles removed: {filtered_bundles}")
 
-    out_dir = os.path.join(os.path.dirname(config["trk_path"]))
+    out_dir = os.path.join(os.path.dirname(config["marked_trk_path"]))
 
     filtered_path = os.path.join(out_dir, "{}_{}_bund.trk".format(
         config["filter_name"], config["percentile"]))
