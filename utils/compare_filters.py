@@ -24,11 +24,10 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
     # Add one list for each filtering criteria
     criteria_scores = {'baseline': []}
-    for criteria in args.criteria:
-        criteria_scores[criteria] = []
 
     # Append values from json to each list
     if args.action == "track_vis":
+        criteria_scores['track_vis'] = []
         for curv in args.max_curv:
             scoring_dir = join(args.results_path, f"scorings_trackvis_c-{curv}")
             if not isdir(scoring_dir):
@@ -44,10 +43,13 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
             with open(json_path) as json_file:
                 scores = json.load(json_file)
 
-            criteria_scores[criteria].append(scores[score_name])
-        criteria_scores['baseline'].append(baseline)
+            criteria_scores['track_vis'].append(scores[score_name])
+            criteria_scores['baseline'].append(baseline)
 
     else:
+        for criteria in args.criteria:
+            criteria_scores[criteria] = []
+
         for percentile in args.percentiles:
             for criteria in args.criteria:
                 scoring_dir = join(args.results_path,
@@ -69,13 +71,14 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                 criteria_scores[criteria].append(scores[score_name])
             criteria_scores['baseline'].append(baseline)
 
+    x_axis = args.max_curv if args.action == "track_vis" else args.percentiles
     fig, ax = plt.subplots()
     for key, values in criteria_scores.items():
         if len(values) > 0:
             if key == 'baseline':
-                ax.plot(args.percentiles, values, label=key, linestyle='dashed')
+                ax.plot(x_axis, values, label=key, linestyle='dashed')
             else:
-                ax.plot(args.percentiles, values, label=key)
+                ax.plot(x_axis, values, label=key)
     legend = ax.legend()
     plt.title(f'{score_name}')
     fig_path = join(args.results_path, f'compare_{args.action}_filter_{score_name}.png')
