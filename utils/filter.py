@@ -24,11 +24,11 @@ def track_vis_filter(config, name='filter_run'):
     out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
     os.makedirs(out_dir)
 
-    filtered_path = os.path.join(out_dir, "{}_{}_tvis.trk".format(
-        config["filter_name"], config["percentile"]))
+    filtered_path = os.path.join(out_dir, f"trackvis_{config['max_curv']}.trk")
 
     command = f"track_vis {config['trk_path']} " \
               f"--curvature 0 {config['max_curv']} -nr -o {filtered_path}"
+
     if call(command):
         if config["score"]:
             score(
@@ -160,10 +160,14 @@ if __name__ == '__main__':
     parser.add_argument("config_path", type=str)
 
     parser.add_argument("--action", type=str, default='bundle_filter',
-                        choices=['bundle_filter', 'fiber_filter'], )
+                        choices=['bundle_filter', 'fiber_filter', 'track_vis'])
 
     parser.add_argument('--percentiles', nargs='+', type=int,
                         help="list of percentiles to try")
+
+    parser.add_argument('--max_curv', nargs='+', type=int,
+                        help="list of maximum curvature for track_vis algorithm"
+                             " to try")
 
     parser.add_argument('--criteria', nargs='+', type=str,
                         help="list of criteria to try")
@@ -171,29 +175,42 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = load(args.config_path)
-    if args.percentiles is None:
-        args.percentiles = [config['percentile']]
 
-    if args.criteria is None:
-        args.criteria = [config['filter_name']]
+    if args.function == 'track_vis':
+        if args.max_curv is None:
+            args.max_curv = [config['max_curv']]
 
-    filter_func = None
-    if args.action == 'fiber_filter':
-        filter_func = filter_fibers
-    elif args.action == 'bundle_filter':
-        filter_func = filter_bundles
+        for curv in args.max_curv:
+            print("Filtering with max curv {0}".format(curv))
 
-    for criteria in args.criteria:
-        print("Filtering with criteria {0}".format(criteria))
-        for percentile in args.percentiles:
-            print("Filtering with percentile {0}".format(percentile))
+            config["max_curv"] = curv
 
-            config["percentile"] = percentile
-            config["filter_name"] = criteria
+            name = 'trackvis-c_{0}'.format(curv)
+            p = Process(target=track_vis_filter, args=(config, name))
+            p.start()
+    else:
+        if args.percentiles is None:
+            args.percentiles = [config['percentile']]
 
-            assert config["filter_name"] in FILTERS
+        if args.criteria is None:
+            args.criteria = [config['filter_name']]
 
-            name = 'p_{0}-f_{1}'.format(percentile, criteria)
-            # p = Process(target=filter_func, args=(config, name))
-            # p.start()
-            filter_fibers(config, name)
+        filter_func = None
+        if args.action == 'fiber_filter':
+            filter_func = filter_fibers
+        elif args.action == 'bundle_filter':
+            filter_func = filter_bundles
+
+        for criteria in args.criteria:
+            print("Filtering with criteria {0}".format(criteria))
+            for percentile in args.percentiles:
+                print("Filtering with percentile {0}".format(percentile))
+
+                config["percentile"] = percentile
+                config["filter_name"] = criteria
+
+                assert config["filter_name"] in FILTERS
+
+                name = 'p_{0}-f_{1}'.format(percentile, criteria)
+                p = Process(target=filter_func, args=(config, name))
+                p.start()
