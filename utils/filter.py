@@ -27,7 +27,8 @@ def track_vis_filter(config, name='filter_run'):
     filtered_path = os.path.join(out_dir, f"trackvis_{config['max_curv']}.trk")
 
     command = f"track_vis {config['trk_path']} " \
-              f"--curvature 0 {config['max_curv']} -nr -o {filtered_path}"
+              f"--curvature 0 {config['max_curv']} " \
+              f"-l 30 200 -nr -o {filtered_path}"
 
     status = call(['/bin/bash', '-c', command])
     print(f"{name}: Saved {filtered_path}")
