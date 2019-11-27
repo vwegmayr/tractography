@@ -1,7 +1,14 @@
-trk_path: subjects/ismrm_basic/marked_fibers/2019-11-25=22:06:30/marked.trk
-filter_name: log_prob_sum
-percentile: 10 # percentile
+marked_trk_path: subjects/ismrm_basic/marked_fibers/2019-11-25=22:06:30/marked.trk
+trk_path: subjects/ismrm_basic/predicted_fibers/2019-11-14-09:36:59/2019-11-14-09:36:59.trk 
+
+filter_name: log_prob_sum  # will be ignored if given as arg
+percentile: 10 # percentile  # will be ignored if given as arg
 apply_k: False
+
+centroid_size: 200
+cluster_thresh: 15
+
+max_curv: 50  # will be ignored if given as arg
 
 score: True
 python2: /local/home/abahrein/.envs/scoring/bin/activate
