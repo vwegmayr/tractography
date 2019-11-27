@@ -124,8 +124,7 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
                 dir_out=direction_masks_1[i], cnt_out=count_masks_1[i])
             
             bundle_map(b[is_from_2], affine_2, img_shape, 
-                dir_out=direction_masks_2[i], cnt_out=count_masks_2[i])
-            
+                dir_out=direction_masks_2[i], cnt_out=count_masks_2[i])  
         else:
             marginal_bundles += 1
 
@@ -146,8 +145,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     fixel_directions_1 = []
     fixel_directions_2 = []
-    fixel_probs_1 = []
-    fixel_probs_2 = []
+    fixel_cnts_1 = []
+    fixel_cnts_2 = []
     fixel_ijk = []
     n_fixels = []
     no_overlap = 0
@@ -173,8 +172,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
             fixel_directions_1.append(fixels1)
             fixel_directions_2.append(fixels2)
 
-            fixel_probs_1.append(f_cnts_1 / (np.float16(1) + f_cnts_1))
-            fixel_probs_2.append(f_cnts_2 / (np.float16(1) + f_cnts_2))
+            fixel_cnts_1.append(f_cnts_1)
+            fixel_cnts_2.append(f_cnts_2)
 
             fixel_ijk.append(np.tile(vox, (n_f, 1)))
 
@@ -184,8 +183,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
 
     fixel_directions_1 = np.vstack(fixel_directions_1)
     fixel_directions_2 = np.vstack(fixel_directions_2)
-    fixel_probs_1 = np.vstack(fixel_probs_1).reshape(-1)
-    fixel_probs_2 = np.vstack(fixel_probs_2).reshape(-1)
+    fixel_cnts_1 = np.vstack(fixel_cnts_1).reshape(-1)
+    fixel_cnts_2 = np.vstack(fixel_cnts_2).reshape(-1)
     fixel_ijk = np.vstack(fixel_ijk)
 
     #gc.collect()
@@ -226,21 +225,22 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     model_inputs_1 = np.hstack([fixel_directions_1, d_1, dnorm_1])
     model_inputs_2 = np.hstack([fixel_directions_2, d_2, dnorm_2])
 
-    asum, amin, amean, amax = agreement_for(
+    fixel_agreements = agreement_for(
         model,
         model_inputs_1,
         model_inputs_2,
-        fixel_probs_1,
-        fixel_probs_2
+        fixel_cnts_1,
+        fixel_cnts_2
     )
 
     agreement = {"temperature": temperature}
     agreement["model_path"] = model_path
     agreement["n_bundles"] = n_bundles
-    agreement["value"] = asum / n_fixels_gt
-    agreement["min"] = amin
-    agreement["mean"] = amean
-    agreement["max"] = amax
+    agreement["value"] = fixel_agreements.sum() / n_fixels_gt
+    agreement["min"] = fixel_agreements.min()
+    agreement["mean"] = fixel_agreements.mean()
+    agreement["max"] = fixel_agreements.max()
+    agreement["std"] = fixel_agreements.std()
     agreement["n_fixels_sum"] = n_fixels_sum
     agreement["n_wm"] = n_wm
     agreement["n_fixels_gt"] = n_fixels_gt
@@ -257,12 +257,42 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     agreement["bundle_min_cnt"] = bundle_min_cnt
     agreement["wm_path"] = wm_path
     agreement["ideal"] = ideal_agreement(temperature)
+
     for k, cnt in zip(*np.unique(n_fixels, return_counts=True)):
         agreement["n_vox_with_{}_fixels".format(k)] = cnt
+
+    for i in [1,5,10]:
+        agreement["le_{}_fibers_per_fixel_1".format(i)] = np.mean(
+            fixel_cnts_1 < i)
+
+    agreement["mean_fibers_per_fixel_1"] = np.mean(fixel_cnts_1)
+    agreement["median_fibers_per_fixel_1"] = np.median(fixel_cnts_1)
+    agreement["mean_fibers_per_fixel_2"] = np.mean(fixel_cnts_2)
+    agreement["median_fibers_per_fixel_2"] = np.median(fixel_cnts_2)
+    agreement["std_fibers_per_fixel"] = np.std(fixel_cnts_1)
+    agreement["max_fibers_per_fixel"] = np.max(fixel_cnts_1)
+    agreement["min_fibers_per_fixel"] = np.min(fixel_cnts_1)
+
+    fixel_angles = (fixel_directions_1 * fixel_directions_2).sum(axis=1)
+    agreement["mean_fixel_angle"] = fixel_angles.mean()
+    agreement["median_fixel_angle"] = np.median(fixel_angles)
+    agreement["std_fixel_angle"] = fixel_angles.std()
+    agreement["negative_fixel_angles"] = (fixel_angles < 0).mean()
 
     save(agreement,
         "agreement_T={}.yml".format(temperature),
         os.path.dirname(model_path)
+    )
+
+    np.savez(
+        os.path.join(
+            os.path.dirname(model_path), "data_T={}".format(temperature)
+        ),
+        fixel_cnts_1=fixel_cnts_1,
+        fixel_cnts_2=fixel_cnts_2,
+        fixel_directions_1=fixel_directions_1,
+        fixel_directions_2=fixel_directions_2,
+        fixel_agreements=fixel_agreements,
     )
 
     K.clear_session()
@@ -279,7 +309,7 @@ def ideal_agreement(T):
     return (np.log(4*np.pi) + logZ(2/T) - 2*logZ(1/T)) / np.log(2)
 
 
-def agreement_for(model, inputs1, inputs2, fixel_probs_1, fixel_probs_2):
+def agreement_for(model, inputs1, inputs2, fixel_cnts_1, fixel_cnts_2):
 
     n_segments = len(inputs1)
 
@@ -295,24 +325,37 @@ def agreement_for(model, inputs1, inputs2, fixel_probs_1, fixel_probs_2):
         fvm_pred_2, _ = model(
             inputs2[c * chunk : (c + 1) * chunk])
 
-        log_fvm[c * chunk : (c + 1) * chunk] = (
-            fvm_log_agreement(fvm_pred_1, fvm_pred_2)
+        log_fvm[c * chunk : (c + 1) * chunk] = fvm_log_agreement(
+            fvm_pred_1,
+            fvm_pred_2,
+            fixel_cnts_1[c * chunk : (c + 1) * chunk],
+            fixel_cnts_2[c * chunk : (c + 1) * chunk]
         )
+        
+    np.maximum(log_fvm, 0, out=log_fvm)
 
-    agreements = np.log2(
-        4 * np.pi * fixel_probs_1 * fixel_probs_2 * np.exp(log_fvm) +
-        (1 - fixel_probs_1) * (1 - fixel_probs_2) +
-        (1 - fixel_probs_1) * fixel_probs_2 +
-        (1 - fixel_probs_2) * fixel_probs_1
+    log_fvm /= np.log(2)
+
+    return log_fvm
+
+
+def fvm_log_agreement(fvm1, fvm2, cnts1, cnts2):
+    fvm1._concentration *= cnts1
+    fvm2._concentration *= cnts2
+
+    fvm12 = FisherVonMises(
+        mean_direction=fvm1.mean_direction, # just a dummy, not used
+        concentration=tf.norm(
+            fvm1.mean_direction * fvm1.concentration[:, tf.newaxis] +
+            fvm2.mean_direction * fvm2.concentration[:, tf.newaxis],
+            axis=1)
     )
 
-    agreements = np.maximum(agreements, 0)
-
     return (
-        agreements.sum(),
-        agreements.min(),
-        agreements.mean(),
-        agreements.max()
+        np.log(4 * np.pi)
+        + fvm12._log_normalization()
+        - fvm1._log_normalization()
+        - fvm2._log_normalization()
     )
 
 
@@ -338,21 +381,6 @@ def bundle_map(bundle, affine, img_shape, dir_out, cnt_out):
 
     dir_out /= (
         np.linalg.norm(dir_out, axis=-1, keepdims=True) + np.float16(10**-6)
-    )
-
-
-def fvm_log_agreement(fvm1, fvm2):
-    fvm12 = FisherVonMises(
-        mean_direction=fvm1.mean_direction, # just a dummy, not used
-        concentration=tf.norm(
-            fvm1.mean_direction * fvm1.concentration[:, tf.newaxis] +
-            fvm2.mean_direction * fvm2.concentration[:, tf.newaxis],
-            axis=1)
-    )
-    return (
-        fvm12._log_normalization()
-        - fvm1._log_normalization()
-        - fvm2._log_normalization()
     )
 
 
@@ -394,7 +422,11 @@ def cluster_fixels(dir1, dir2, cnts1, cnts2, threshold):
         cnts2 = np.vstack([cnts2.reshape(-1, 1), mcount2.reshape(-1, 1)])
 
         return cluster_fixels(dir1, dir2, cnts1, cnts2, threshold)
+
     else:
+
+        dir2 *= safe_sign(np.sum(dir1 * dir2, axis=1, keepdims=True))
+
         return dir1, dir2, cnts1.reshape(-1, 1), cnts2.reshape(-1, 1)
 
 
@@ -438,13 +470,17 @@ if __name__ == '__main__':
         config = load(args.config_path)
 
         gpu_queue = SimpleQueue()
-        for idx in get_gpus()[:4]:
+        for idx in get_gpus()[:5]:
             gpu_queue.put(str(idx))
 
         try:
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
-                if any(t in model_path for t in ['0.0010', '0.0300']):
+                if any(t in model_path for t in ['0.0102', '0.0395', '0.0668', 
+                    '0.0089', '0.0133', '0.0199', '0.0229', '0.0343', '0.0886', 
+                    '0.0769', '0.0153', '0.1000', '0.0298', 
+                    '0.0068', '0.0264', '0.0513', '0.0026', '0.0446', '0.0117', 
+                    '0.0078', '0.0176', '0.0591']):
 
                     while gpu_queue.empty():
                         sleep(10)
