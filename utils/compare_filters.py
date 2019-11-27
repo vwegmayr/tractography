@@ -32,7 +32,7 @@ def compare_score(results_path, percentiles, filters, score_name='mean_F1',
         for criteria in filters:
             scoring_dir = join(results_path, f"scorings_p_{percentile}-f_{criteria}")
             if not isdir(scoring_dir):
-                raise FileNotFoundError
+                raise FileNotFoundError(f'File {scoring_dir} does not exist!')
 
             scoring_dir = join(scoring_dir, "scores")
             json_path = [file for file in listdir(scoring_dir)
