@@ -135,6 +135,9 @@ if __name__ == '__main__':
 
     parser.add_argument("config_path", type=str)
 
+    parser.add_argument("--action", type=str, default='bundle_filter',
+                        choices=['bundle_filter', 'fiber_filter'], )
+
     parser.add_argument('--percentiles', nargs='+', type=int,
                         help="list of percentiles to try")
 
@@ -144,7 +147,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = load(args.config_path)
-
     if args.percentiles is None:
         args.percentiles = [config['percentile']]
 
@@ -152,9 +154,9 @@ if __name__ == '__main__':
         args.criteria = [config['filter_name']]
 
     filter_func = None
-    if config['action'] == 'fiber_filter':
+    if args.action == 'fiber_filter':
         filter_func = filter_fibers
-    elif config['action'] == 'bundle_filter':
+    elif args.action == 'bundle_filter':
         filter_func = filter_bundles
 
     for criteria in args.criteria:
