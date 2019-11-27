@@ -8,7 +8,6 @@ import numpy as np
 
 from utils.config import load
 from utils._score import score
-from utils.training import timestamp
 from nibabel.streamlines.trk import TrkFile
 from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
@@ -20,9 +19,7 @@ FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
 
 def track_vis_filter(config, name='filter_run'):
 
-    time = timestamp()
-    out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir = os.path.join(os.path.dirname(config["trk_path"]))
 
     filtered_path = os.path.join(out_dir, f"trackvis_{config['max_curv']}.trk")
 
@@ -77,11 +74,9 @@ def filter_fibers(config, name='filter_run'):
 
     tractogram = tractogram[keep]
 
-    time = timestamp()
-    out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
-    os.makedirs(out_dir)
+    out_dir = os.path.join(os.path.dirname(config["trk_path"]))
 
-    filtered_path = os.path.join(out_dir, "{}_{}_k={}.trk".format(
+    filtered_path = os.path.join(out_dir, "{}_{}_fib_k={}.trk".format(
         config["filter_name"], config["percentile"],
         "t" if config["apply_k"] else "f"))
 
@@ -137,9 +132,7 @@ def filter_bundles(config, name='filter_run'):
     tractogram = tractogram[keep]
     print(f"{name}: {len(filtered_bundles)} bundles removed: {filtered_bundles}")
 
-    time = timestamp()
-    out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
-    os.makedirs(out_dir)
+    out_dir = os.path.join(os.path.dirname(config["trk_path"]))
 
     filtered_path = os.path.join(out_dir, "{}_{}_bund.trk".format(
         config["filter_name"], config["percentile"]))
@@ -188,7 +181,7 @@ if __name__ == '__main__':
 
             config["max_curv"] = curv
 
-            name = 'trackvis-c_{0}'.format(curv)
+            name = 'trackvis_c-{0}'.format(curv)
             p = Process(target=track_vis_filter, args=(config, name))
             p.start()
     else:
@@ -214,6 +207,8 @@ if __name__ == '__main__':
 
                 assert config["filter_name"] in FILTERS
 
-                name = 'p_{0}-f_{1}'.format(percentile, criteria)
+                name = 'p_{0}-f_{1}_{2}'.format(
+                    percentile, criteria,
+                    'bund' if args.action == 'bundle_filter' else 'fib')
                 p = Process(target=filter_func, args=(config, name))
                 p.start()
