@@ -1,6 +1,7 @@
 import os
 import argparse
 from multiprocessing import Process
+from subprocess import call
 
 import nibabel as nib
 import numpy as np
@@ -15,6 +16,27 @@ from dipy.segment.metric import ResampleFeature
 
 
 FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
+
+
+def track_vis_filter(config, name='filter_run'):
+
+    time = timestamp()
+    out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
+    os.makedirs(out_dir)
+
+    filtered_path = os.path.join(out_dir, "{}_{}_tvis.trk".format(
+        config["filter_name"], config["percentile"]))
+
+    command = f"track_vis {config['trk_path']} " \
+              f"--curvature 0 {config['max_curv']} -nr -o {filtered_path}"
+    if call(command):
+        if config["score"]:
+            score(
+                filtered_path,
+                out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
+                no_trim=True,
+                python2=config['python2']
+                )
 
 
 def filter_fibers(config, name='filter_run'):
@@ -54,6 +76,7 @@ def filter_fibers(config, name='filter_run'):
 
     time = timestamp()
     out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
+    os.makedirs(out_dir)
 
     filtered_path = os.path.join(out_dir, "{}_{}_k={}.trk".format(
         config["filter_name"], config["percentile"],
@@ -113,8 +136,9 @@ def filter_bundles(config, name='filter_run'):
 
     time = timestamp()
     out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
+    os.makedirs(out_dir)
 
-    filtered_path = os.path.join(out_dir, "{}_{}.trk".format(
+    filtered_path = os.path.join(out_dir, "{}_{}_bund.trk".format(
         config["filter_name"], config["percentile"]))
 
     print("{0}: Saving {1}".format(name, filtered_path))
@@ -170,5 +194,6 @@ if __name__ == '__main__':
             assert config["filter_name"] in FILTERS
 
             name = 'p_{0}-f_{1}'.format(percentile, criteria)
-            p = Process(target=filter_func, args=(config, name))
-            p.start()
+            # p = Process(target=filter_func, args=(config, name))
+            # p.start()
+            filter_fibers(config, name)
