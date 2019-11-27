@@ -22,7 +22,7 @@ def track_vis_filter(config, name='filter_run'):
 
     time = timestamp()
     out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
-    os.makedirs(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
 
     filtered_path = os.path.join(out_dir, f"trackvis_{config['max_curv']}.trk")
 
