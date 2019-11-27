@@ -7,6 +7,7 @@ import numpy as np
 
 from utils.config import load
 from utils._score import score
+from utils.training import timestamp
 from nibabel.streamlines.trk import TrkFile
 from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
@@ -51,7 +52,8 @@ def filter_fibers(config, name='filter_run'):
 
     tractogram = tractogram[keep]
 
-    out_dir = os.path.dirname(config["trk_path"])
+    time = timestamp()
+    out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
 
     filtered_path = os.path.join(out_dir, "{}_{}_k={}.trk".format(
         config["filter_name"], config["percentile"],
@@ -109,7 +111,8 @@ def filter_bundles(config, name='filter_run'):
     tractogram = tractogram[keep]
     print(f"{name}: {len(filtered_bundles)} bundles removed: {filtered_bundles}")
 
-    out_dir = os.path.dirname(config["trk_path"])
+    time = timestamp()
+    out_dir = os.path.join(os.path.dirname(config["trk_path"]), time)
 
     filtered_path = os.path.join(out_dir, "{}_{}.trk".format(
         config["filter_name"], config["percentile"]))
