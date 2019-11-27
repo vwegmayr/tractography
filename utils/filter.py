@@ -29,14 +29,16 @@ def track_vis_filter(config, name='filter_run'):
     command = f"track_vis {config['trk_path']} " \
               f"--curvature 0 {config['max_curv']} -nr -o {filtered_path}"
 
-    if call(command):
-        if config["score"]:
-            score(
-                filtered_path,
-                out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
-                no_trim=True,
-                python2=config['python2']
-                )
+    status = call(['/bin/bash', '-c', command])
+    print(f"{name}: Saved {filtered_path}")
+
+    if config["score"]:
+        score(
+            filtered_path,
+            out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
+            no_trim=True,
+            python2=config['python2']
+            )
 
 
 def filter_fibers(config, name='filter_run'):
