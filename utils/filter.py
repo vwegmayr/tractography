@@ -8,6 +8,9 @@ import numpy as np
 from utils.config import load
 from utils._score import score
 from nibabel.streamlines.trk import TrkFile
+from dipy.segment.clustering import QuickBundles
+from dipy.segment.metric import AveragePointwiseEuclideanMetric
+from dipy.segment.metric import ResampleFeature
 
 
 FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
@@ -66,6 +69,63 @@ def filter_fibers(config, name='filter_run'):
             )
 
 
+def filter_bundles(config, name='filter_run'):
+    print("{0}: Loading fibers ...".format(name))
+    trk_file = nib.streamlines.load(config["trk_path"])
+
+    tractogram = trk_file.tractogram
+
+    if (config["filter_name"] != "none" and
+            config["filter_name"] not in tractogram.data_per_point):
+        raise ValueError("You need to mark fibers before filtering!")
+
+    keep = list(range(len(tractogram)))
+
+    print(f"{name}: Clustering fibers ...")
+    feature = ResampleFeature(nb_points=config['centroid_size'])
+    qb = QuickBundles(
+        threshold=config['cluster_thresh'],
+        metric=AveragePointwiseEuclideanMetric(feature)
+    )
+
+    bundles = qb.cluster(tractogram.streamlines)
+    bundles.refdata = tractogram
+
+    print(f"{name}: {len(bundles.clusters)} clusters found")
+    values = np.zeros(len(bundles.clusters))
+    for i, b in enumerate(bundles.clusters):
+        cluster_tracts = tractogram.data_per_point[config["filter_name"]][b.indices]
+        values[i] = np.mean([min(points)[0] for points in cluster_tracts])
+
+    threshold_value = np.percentile(values, config["percentile"])
+
+    print(f"{name}: Filtering bundles ...")
+    filtered_bundles = []
+    for i, cluster_value in enumerate(values):
+        if cluster_value < threshold_value:
+            filtered_bundles.append(i)
+            for index in bundles.clusters[i].indices:
+                keep.remove(index)
+    tractogram = tractogram[keep]
+    print(f"{name}: {len(filtered_bundles)} bundles removed: {filtered_bundles}")
+
+    out_dir = os.path.dirname(config["trk_path"])
+
+    filtered_path = os.path.join(out_dir, "{}_{}.trk".format(
+        config["filter_name"], config["percentile"]))
+
+    print("{0}: Saving {1}".format(name, filtered_path))
+    TrkFile(tractogram, trk_file.header).save(filtered_path)
+
+    if config["score"]:
+        score(
+            filtered_path,
+            out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
+            no_trim=True,
+            python2=config['python2']
+        )
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Filter unlikely fibers.")
@@ -88,6 +148,12 @@ if __name__ == '__main__':
     if args.criteria is None:
         args.criteria = [config['filter_name']]
 
+    filter_func = None
+    if config['action'] == 'fiber_filter':
+        filter_func = filter_fibers
+    elif config['action'] == 'bundle_filter':
+        filter_func = filter_bundles
+
     for criteria in args.criteria:
         print("Filtering with criteria {0}".format(criteria))
         for percentile in args.percentiles:
@@ -99,5 +165,5 @@ if __name__ == '__main__':
             assert config["filter_name"] in FILTERS
 
             name = 'p_{0}-f_{1}'.format(percentile, criteria)
-            p = Process(target=filter_fibers, args=(config, name))
+            p = Process(target=filter_func, args=(config, name))
             p.start()
