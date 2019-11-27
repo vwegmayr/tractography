@@ -159,7 +159,7 @@ if __name__ == '__main__':
 
     parser.add_argument("config_path", type=str)
 
-    parser.add_argument("--action", type=str, default='bundle_filter',
+    parser.add_argument("--action", type=str,
                         choices=['bundle_filter', 'fiber_filter', 'track_vis'])
 
     parser.add_argument('--percentiles', nargs='+', type=int,
