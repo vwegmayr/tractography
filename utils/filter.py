@@ -176,7 +176,7 @@ if __name__ == '__main__':
 
     config = load(args.config_path)
 
-    if args.function == 'track_vis':
+    if args.action == 'track_vis':
         if args.max_curv is None:
             args.max_curv = [config['max_curv']]
 
