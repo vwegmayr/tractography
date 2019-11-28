@@ -42,9 +42,7 @@ def track_vis_filter(config, name='filter_run'):
 
 def filter_fibers(config, name='filter_run'):
 
-    print("{0}: Loading fibers ...".format(name))
-    trk_file = nib.streamlines.load(config["marked_trk_path"])
-
+    trk_file = config['trk_file']
     tractogram = trk_file.tractogram
 
     if (config["filter_name"] != "none" and
@@ -83,9 +81,8 @@ def filter_fibers(config, name='filter_run'):
 
 
 def filter_bundles(config, name='filter_run'):
-    print("{0}: Loading fibers ...".format(name))
-    trk_file = nib.streamlines.load(config["marked_trk_path"])
 
+    trk_file = config['trk_file']
     tractogram = trk_file.tractogram
 
     if (config["filter_name"] != "none" and config['filter_name'] != 'curvature'
@@ -194,6 +191,9 @@ if __name__ == '__main__':
             filter_func = filter_fibers
         elif args.action == 'bundle_filter':
             filter_func = filter_bundles
+
+        print("Loading fibers ...")
+        config['trk_file'] = nib.streamlines.load(config["marked_trk_path"])
 
         for criteria in args.criteria:
             print("Filtering with criteria {0}".format(criteria))
