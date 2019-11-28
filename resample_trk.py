@@ -16,6 +16,21 @@ from nibabel.streamlines.trk import TrkFile
 from nibabel.streamlines.array_sequence import ArraySequence
 
 
+def fiber_curvature(fiber):
+    """Return curvature for each point of the fiber"""
+
+    tck, u = interpolate.splprep(fiber.T.reshape(3, -1), s=0)
+
+    pts = u * 1.0
+    r1 = np.dstack(interpolate.splev(pts, tck, der=1))[0]
+    r2 = np.dstack(interpolate.splev(pts, tck, der=2))[0]
+    r1xr2 = np.cross(r1, r2)
+    k = np.linalg.norm(r1xr2, axis=1, keepdims=True)
+    k /= np.linalg.norm(r1, axis=1, keepdims=True) ** 3  # curvature
+
+    return k
+
+
 def fiber_geometry(fiber, npts, smoothing):
     """Resample one fiber, and calculate geometry data"""
     
