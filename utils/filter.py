@@ -83,6 +83,7 @@ def filter_fibers(config, name='filter_run'):
 def filter_bundles(config, name='filter_run'):
 
     trk_file = config['trk_file']
+    bundles = config['bundles']
     tractogram = trk_file.tractogram
 
     if (config["filter_name"] != "none" and config['filter_name'] != 'curvature'
@@ -90,16 +91,6 @@ def filter_bundles(config, name='filter_run'):
         raise ValueError("You need to mark fibers before filtering!")
 
     keep = list(range(len(tractogram)))
-
-    print(f"{name}: Clustering fibers ...")
-    feature = ResampleFeature(nb_points=config['centroid_size'])
-    qb = QuickBundles(
-        threshold=config['cluster_thresh'],
-        metric=AveragePointwiseEuclideanMetric(feature)
-    )
-
-    bundles = qb.cluster(tractogram.streamlines)
-    bundles.refdata = tractogram
 
     print(f"{name}: {len(bundles.clusters)} clusters found")
     values = np.zeros(len(bundles.clusters))
@@ -186,14 +177,25 @@ if __name__ == '__main__':
         if args.criteria is None:
             args.criteria = [config['filter_name']]
 
+        print("Loading fibers ...")
+        config['trk_file'] = nib.streamlines.load(config["marked_trk_path"])
+
         filter_func = None
         if args.action == 'fiber_filter':
             filter_func = filter_fibers
         elif args.action == 'bundle_filter':
             filter_func = filter_bundles
 
-        print("Loading fibers ...")
-        config['trk_file'] = nib.streamlines.load(config["marked_trk_path"])
+            print("Clustering fibers ...")
+            feature = ResampleFeature(nb_points=config['centroid_size'])
+            qb = QuickBundles(
+                threshold=config['cluster_thresh'],
+                metric=AveragePointwiseEuclideanMetric(feature)
+            )
+
+            bundles = qb.cluster(config['trk_file'].tractogram.streamlines)
+            bundles.refdata = config['trk_file'].tractogram
+            config['bundles'] = bundles
 
         for criteria in args.criteria:
             print("Filtering with criteria {0}".format(criteria))
