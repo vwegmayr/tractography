@@ -8,13 +8,14 @@ import numpy as np
 
 from utils.config import load
 from utils._score import score
+from resample_trk import fiber_curvature
 from nibabel.streamlines.trk import TrkFile
 from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.segment.metric import ResampleFeature
 
 
-FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "none"]
+FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "curvature", "none"]
 
 
 def track_vis_filter(config, name='filter_run'):
@@ -56,29 +57,18 @@ def filter_fibers(config, name='filter_run'):
         print("{0}: filter based on {1}...".format(name, config["filter_name"]))
         values = [min(t)[0] for t in tractogram.data_per_point[config["filter_name"]]]
         threshold_value = np.percentile(values, config["percentile"])
+        print(f"Threshold value {threshold_value} with percentile {config['percentile']}")
 
         for i, tract in enumerate(tractogram.data_per_point[config["filter_name"]]):
             if min(tract)[0] < threshold_value:
                 keep.remove(i)
 
-    if "apply_k" in config and config["apply_k"]:
-        print("{0}: filter based on curvatures...".format(name))
-        curvatures = [t[0,0] for t in tractogram.data_per_point["k"]]
-        k_threshold = np.percentile(curvatures, config["percentile"])
-        for i, tract in enumerate(tractogram.data_per_point["k"]):
-            if tract[0, 0] > k_threshold:
-                try:
-                    keep.remove(i)
-                except ValueError:  # already removed before
-                    pass
-
     tractogram = tractogram[keep]
 
     out_dir = os.path.join(os.path.dirname(config["marked_trk_path"]))
 
-    filtered_path = os.path.join(out_dir, "{}_{}_fib_k={}.trk".format(
-        config["filter_name"], config["percentile"],
-        "t" if config["apply_k"] else "f"))
+    filtered_path = os.path.join(out_dir, "{}_{}_fib_k=f.trk".format(
+        config["filter_name"], config["percentile"]))
 
     print("{0}: Saving {1}".format(name, filtered_path))
     TrkFile(tractogram, trk_file.header).save(filtered_path)
@@ -98,8 +88,8 @@ def filter_bundles(config, name='filter_run'):
 
     tractogram = trk_file.tractogram
 
-    if (config["filter_name"] != "none" and
-            config["filter_name"] not in tractogram.data_per_point):
+    if (config["filter_name"] != "none" and config['filter_name'] != 'curvature'
+            and config["filter_name"] not in tractogram.data_per_point):
         raise ValueError("You need to mark fibers before filtering!")
 
     keep = list(range(len(tractogram)))
@@ -117,10 +107,18 @@ def filter_bundles(config, name='filter_run'):
     print(f"{name}: {len(bundles.clusters)} clusters found")
     values = np.zeros(len(bundles.clusters))
     for i, b in enumerate(bundles.clusters):
-        cluster_tracts = tractogram.data_per_point[config["filter_name"]][b.indices]
-        values[i] = np.mean([min(points)[0] for points in cluster_tracts])
+        if config['filter_name'] != 'curvature':
+            cluster_tracts = \
+                tractogram.data_per_point[config["filter_name"]][b.indices]
+            values[i] = np.mean([min(points)[0] for points in cluster_tracts])
+        else:
+            cluster_tracts = tractogram.streamlines[b.indices]
+            curvatures = [fiber_curvature(fiber) for fiber in cluster_tracts]
+            values[i] = np.mean([min(fiber)[0] for fiber in curvatures])
 
     threshold_value = np.percentile(values, config["percentile"])
+    print(f"Threshold value {threshold_value} "
+          f"with percentile {config['percentile']}")
 
     print(f"{name}: Filtering bundles ...")
     filtered_bundles = []
