@@ -121,14 +121,14 @@ def filter_bundles(config, name='filter_run'):
           f"with percentile {config['percentile']}")
 
     print(f"{name}: Filtering bundles ...")
-    filtered_bundles = []
+    filtered_bundles = 0
     for i, cluster_value in enumerate(values):
         if cluster_value < threshold_value:
-            filtered_bundles.append(i)
+            filtered_bundles = filtered_bundles + 1
             for index in bundles.clusters[i].indices:
                 keep.remove(index)
     tractogram = tractogram[keep]
-    print(f"{name}: {len(filtered_bundles)} bundles removed: {filtered_bundles}")
+    print(f"{name}: {filtered_bundles} bundles removed")
 
     out_dir = os.path.join(os.path.dirname(config["marked_trk_path"]))
 
