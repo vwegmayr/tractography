@@ -40,7 +40,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
             # Un comment for local use!
             # json_path = join(args.results_path, f'trackvis_{curv}.json')
 
-            with open(json_path) as json_file:
+            with open(join(scoring_dir, json_path)) as json_file:
                 scores = json.load(json_file)
 
             criteria_scores['track_vis'].append(scores[score_name])
@@ -66,7 +66,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                 # json_path = join(args.results_path, f'{criteria}_{percentile}_fib_k=f.json')
                 # json_path = join(args.results_path, f'{criteria}_{percentile}_bund.json')
 
-                with open(json_path) as json_file:
+                with open(join(scoring_dir, json_path)) as json_file:
                     scores = json.load(json_file)
 
                 criteria_scores[criteria].append(scores[score_name])
