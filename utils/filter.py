@@ -145,14 +145,12 @@ def filter_bundles(config, name='filter_run'):
     mean_avg_fiber_len = np.mean([b['avg_fib_len'] for b in filtered_bundles]).item()
     median_avg_fiber_len = np.median([b['avg_fib_len'] for b in filtered_bundles]).item()
     filtered_bundles = {'bundles': filtered_bundles,
-                        'bundles_removed': bundles_removed
+                        'bundles_removed': bundles_removed,
                         'avg_nb_fiber': avg_nb_fiber,
                         'mean_avg_fiber_len': mean_avg_fiber_len,
                         'median_avg_fiber_len': median_avg_fiber_len}
     with open(join(removed_out_dir, 'removed_info.yml'), "w") as file:
             yaml.dump(filtered_bundles, file, default_flow_style=False)
-
-
     print(f"{name}: average number of fibers: {avg_nb_fiber} | mean average length: {mean_avg_fiber_len}")
 
     filtered_path = join(out_dir, f"{config['filter_name']}_{config['percentile']}_bund.trk")
