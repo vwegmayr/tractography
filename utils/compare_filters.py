@@ -35,7 +35,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
             scoring_dir = join(scoring_dir, "scores")
             json_path = [file for file in listdir(scoring_dir)
-                         if file.endswith('.json')]
+                         if file.endswith('.json')][0]
 
             # Un comment for local use!
             # json_path = join(args.results_path, f'trackvis_{curv}.json')
@@ -60,7 +60,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
                 scoring_dir = join(scoring_dir, "scores")
                 json_path = [file for file in listdir(scoring_dir)
-                             if file.endswith('.json')]
+                             if file.endswith('.json')][0]
 
                 # Un comment for local use!
                 # json_path = join(args.results_path, f'{criteria}_{percentile}_fib_k=f.json')
