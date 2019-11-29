@@ -115,6 +115,8 @@ def filter_bundles(config, name='filter_run'):
 
     print(f"{name}: Filtering bundles ...")
     filtered_bundles = []
+    filtered_bundles_idx = []
+    kept_bundles_idx = []
     for i, cluster_value in enumerate(values):
         if (config['filter_name'] != 'curvature'
                 and cluster_value < threshold_value) or \
@@ -122,6 +124,7 @@ def filter_bundles(config, name='filter_run'):
              and cluster_value > threshold_value):
 
             # Save bundle info
+            filtered_bundles_idx.append(i)
             this_bundle_file = join(removed_out_dir,
                                     f"removed_id-{i}_p-{config['percentile']}_f-{config['filter_name']}.trk")
             this_bundle = tractogram[bundles.clusters[i].indices]
@@ -137,15 +140,27 @@ def filter_bundles(config, name='filter_run'):
             # Finally remove the fibers in that bundle
             for index in bundles.clusters[i].indices:
                 keep.remove(index)
+        else:
+            kept_bundles_idx.append(i)
+
     tractogram = tractogram[keep]
     print(f"{name}: {len(filtered_bundles)} bundles removed")
 
-    bundles_removed = len(filtered_bundles)
+    nb_bundles_removed = len(filtered_bundles)
+    nb_bundles_kept = len(kept_bundles_idx)
+    nb_bundles = len(values)
+    bundles_removed_idx = [b['index'] for b in filtered_bundles]
+    bundles_kept_idx = kept_bundles_idx
+
     avg_nb_fiber = np.mean([b['nb_fiber'] for b in filtered_bundles]).item()
     mean_avg_fiber_len = np.mean([b['avg_fib_len'] for b in filtered_bundles]).item()
     median_avg_fiber_len = np.median([b['avg_fib_len'] for b in filtered_bundles]).item()
     filtered_bundles = {'bundles': filtered_bundles,
-                        'bundles_removed': bundles_removed,
+                        'nb_bundles_removed': nb_bundles_removed,
+                        'nb_bundles_kept': nb_bundles_kept,
+                        'nb_bundles': nb_bundles,
+                        'bundles_removed_idx': bundles_removed_idx,
+                        'bundles_kept_idx': bundles_kept_idx,
                         'avg_nb_fiber': avg_nb_fiber,
                         'mean_avg_fiber_len': mean_avg_fiber_len,
                         'median_avg_fiber_len': median_avg_fiber_len}
