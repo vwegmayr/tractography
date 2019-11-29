@@ -1,10 +1,12 @@
-import os
+from os.path import join, dirname
+from os import makedirs
 import argparse
 from multiprocessing import Process
 from subprocess import call
 
 import nibabel as nib
 import numpy as np
+import yaml
 
 from utils.config import load
 from utils._score import score
@@ -20,9 +22,9 @@ FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "curvature", "none"]
 
 def track_vis_filter(config, name='filter_run'):
 
-    out_dir = os.path.join(os.path.dirname(config["trk_path"]))
+    out_dir = join(dirname(config["trk_path"]))
 
-    filtered_path = os.path.join(out_dir, f"trackvis_{config['max_curv']}.trk")
+    filtered_path = join(out_dir, f"trackvis_{config['max_curv']}.trk")
 
     command = f"track_vis {config['trk_path']} " \
               f"--curvature 0 {config['max_curv']} " \
@@ -34,7 +36,7 @@ def track_vis_filter(config, name='filter_run'):
     if config["score"]:
         score(
             filtered_path,
-            out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
+            out_dir=join(out_dir, "scorings_{0}".format(name)),
             no_trim=True,
             python2=config['python2']
             )
@@ -63,9 +65,9 @@ def filter_fibers(config, name='filter_run'):
 
     tractogram = tractogram[keep]
 
-    out_dir = os.path.join(os.path.dirname(config["marked_trk_path"]))
+    out_dir = join(dirname(config["marked_trk_path"]))
 
-    filtered_path = os.path.join(out_dir, "{}_{}_fib_k=f.trk".format(
+    filtered_path = join(out_dir, "{}_{}_fib_k=f.trk".format(
         config["filter_name"], config["percentile"]))
 
     print("{0}: Saving {1}".format(name, filtered_path))
@@ -74,13 +76,16 @@ def filter_fibers(config, name='filter_run'):
     if config["score"]:
         score(
             filtered_path,
-            out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
+            out_dir=join(out_dir, "scorings_{0}".format(name)),
             no_trim=True,
             python2=config['python2']
             )
 
 
 def filter_bundles(config, name='filter_run'):
+    out_dir = dirname(config["marked_trk_path"])
+    removed_out_dir = join(out_dir, f"removed_bundles_p-{config['percentile']}_f-{config['filter_name']}")
+    makedirs(removed_out_dir, exist_ok=True)
 
     trk_file = config['trk_file']
     bundles = config['bundles']
@@ -109,23 +114,48 @@ def filter_bundles(config, name='filter_run'):
           f"with percentile {config['percentile']}")
 
     print(f"{name}: Filtering bundles ...")
-    filtered_bundles = 0
+    filtered_bundles = []
     for i, cluster_value in enumerate(values):
         if (config['filter_name'] != 'curvature'
                 and cluster_value < threshold_value) or \
             (config['filter_name'] == 'curvature'
              and cluster_value > threshold_value):
-            
-            filtered_bundles = filtered_bundles + 1
+
+            # Save bundle info
+            this_bundle_file = join(removed_out_dir,
+                                    f"removed_id-{i}_p-{config['percentile']}_f-{config['filter_name']}.trk")
+            this_bundle = tractogram[bundles.clusters[i].indices]
+            streamline_lengths = [len(s) for s in this_bundle.streamlines]
+            this_bundle_info = {"index": i,
+                                "nb_fiber": len(this_bundle),
+                                "avg_fib_len": np.mean(streamline_lengths).item(),
+                                "median_fib_len": np.median(streamline_lengths).item(),
+                                'file': this_bundle_file}
+            TrkFile(this_bundle, trk_file.header).save(this_bundle_file)
+            filtered_bundles.append(this_bundle_info)
+
+            # Finally remove the fibers in that bundle
             for index in bundles.clusters[i].indices:
                 keep.remove(index)
     tractogram = tractogram[keep]
-    print(f"{name}: {filtered_bundles} bundles removed")
+    print(f"{name}: {len(filtered_bundles)} bundles removed")
 
-    out_dir = os.path.join(os.path.dirname(config["marked_trk_path"]))
+    bundles_removed = len(filtered_bundles)
+    avg_nb_fiber = np.mean([b['nb_fiber'] for b in filtered_bundles]).item()
+    mean_avg_fiber_len = np.mean([b['avg_fib_len'] for b in filtered_bundles]).item()
+    median_avg_fiber_len = np.median([b['avg_fib_len'] for b in filtered_bundles]).item()
+    filtered_bundles = {'bundles': filtered_bundles,
+                        'bundles_removed': bundles_removed
+                        'avg_nb_fiber': avg_nb_fiber,
+                        'mean_avg_fiber_len': mean_avg_fiber_len,
+                        'median_avg_fiber_len': median_avg_fiber_len}
+    with open(join(removed_out_dir, 'removed_info.yml'), "w") as file:
+            yaml.dump(filtered_bundles, file, default_flow_style=False)
 
-    filtered_path = os.path.join(out_dir, "{}_{}_bund.trk".format(
-        config["filter_name"], config["percentile"]))
+
+    print(f"{name}: average number of fibers: {avg_nb_fiber} | mean average length: {mean_avg_fiber_len}")
+
+    filtered_path = join(out_dir, f"{config['filter_name']}_{config['percentile']}_bund.trk")
 
     print("{0}: Saving {1}".format(name, filtered_path))
     TrkFile(tractogram, trk_file.header).save(filtered_path)
@@ -133,7 +163,7 @@ def filter_bundles(config, name='filter_run'):
     if config["score"]:
         score(
             filtered_path,
-            out_dir=os.path.join(out_dir, "scorings_{0}".format(name)),
+            out_dir=join(out_dir, "scorings_{0}".format(name)),
             no_trim=True,
             python2=config['python2']
         )
