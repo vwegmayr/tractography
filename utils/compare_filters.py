@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 SCORES = ['mean_F1', 'IC', 'IB', 'VC', 'VB', 'mean_OR', 'mean_OL']
 BASELINES = [0.47369345142021646, 0.4257722385427191, 116, 0.5372817904136711,
              24, 0.34630964300920797, 0.45358382820115767]
-FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob"]
+FILTERS = ["log_prob_ratio", "log_prob_sum", "log_prob", "curvature"]
 
 
 def compare(args):
@@ -52,8 +52,9 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
         for percentile in args.percentiles:
             for criteria in args.criteria:
+                ext = 'bund' if args.action == 'bundle_filter' else 'fib'
                 scoring_dir = join(args.results_path,
-                                   f"scorings_p_{percentile}-f_{criteria}_{args.action}")
+                                   f"scorings_p_{percentile}-f_{criteria}_{ext}")
                 if not isdir(scoring_dir):
                     raise FileNotFoundError(f'File {scoring_dir} does not exist!')
 
@@ -84,8 +85,6 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
     fig_path = join(args.results_path, f'compare_{args.action}_filter_{score_name}.png')
     print(f'Saving plot to {fig_path}')
     plt.savefig(fig_path)
-
-    pass
 
 
 if __name__ == '__main__':
