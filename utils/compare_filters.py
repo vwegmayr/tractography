@@ -81,10 +81,10 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
             for c1, c2 in crit_pairs:
                 assert c1 != c2
 
-                removed_path_1 = join(args.result_path, f"removed_bundles_p-{p1}_f-{c1}")
+                removed_path_1 = join(args.results_path, f"removed_bundles_p-{p1}_f-{c1}")
                 info_path_1 = join(removed_path_1, 'removed_info.yml')
 
-                removed_path_2 = join(args.result_path, f"removed_bundles_p-{p2}_f-{c2}")
+                removed_path_2 = join(args.results_path, f"removed_bundles_p-{p2}_f-{c2}")
                 info_path_2 = join(removed_path_2, 'removed_info.yml')
 
                 with open(info_path_1, "r") as info_file:
