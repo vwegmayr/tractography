@@ -76,7 +76,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
         # Info on bundles
         crit_pairs = list(set(itertools.product(args.criteria, args.criteria)))
-        perc_pairs = list(itertools.product(args.criteria, args.criteria))
+        perc_pairs = list(itertools.product(args.percentiles, args.percentiles))
         for p1, p2 in perc_pairs:
             for c1, c2 in crit_pairs:
                 assert c1 != c2
