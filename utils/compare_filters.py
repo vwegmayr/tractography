@@ -138,7 +138,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                               f'{c1}_nb_bundles_removed': nb_bundles_removed_1,
                               f'{c2}_nb_bundles_removed': nb_bundles_removed_2}
 
-                comp_path = join(args.result_path, f'comp_{c1}_{c2}_p1-{p1}_p2-{p2}.yml')
+                comp_path = join(args.results_path, f'comp_{c1}_{c2}_p1-{p1}_p2-{p2}.yml')
                 print(f'Saving comparison to {comp_path}...')
                 with open(comp_path, "w") as file:
                     yaml.dump(comparison, file, default_flow_style=False)
