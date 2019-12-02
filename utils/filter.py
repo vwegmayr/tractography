@@ -239,10 +239,10 @@ if __name__ == '__main__':
             filter_func = filter_bundles
 
             print("Clustering fibers ...")
-            feature = ResampleFeature(nb_points=config['centroid_size'])
+            # feature = ResampleFeature(nb_points=config['centroid_size'])
             qb = QuickBundles(
                 threshold=config['cluster_thresh'],
-                metric=AveragePointwiseEuclideanMetric(feature)
+                metric=AveragePointwiseEuclideanMetric()
             )
 
             bundles = qb.cluster(config['trk_file'].tractogram.streamlines)
