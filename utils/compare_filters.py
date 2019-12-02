@@ -75,123 +75,124 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
             # criteria_scores['baseline'].append(baseline)
 
         # Info on bundles
-        crit_pairs = list(set(itertools.product(args.criteria, args.criteria)))
-        perc_pairs = list(itertools.product(args.percentiles, args.percentiles))
-        for p1, p2 in perc_pairs:
-            for c1, c2 in crit_pairs:
-                if c1 != c2:
+        if args.compare:
+            crit_pairs = list(set(itertools.product(args.criteria, args.criteria)))
+            perc_pairs = list(itertools.product(args.percentiles, args.percentiles))
+            for p1, p2 in perc_pairs:
+                for c1, c2 in crit_pairs:
+                    if c1 != c2:
 
-                    removed_path_1 = join(args.results_path, f"removed_bundles_p-{p1}_f-{c1}")
-                    info_path_1 = join(removed_path_1, 'removed_info.yml')
+                        removed_path_1 = join(args.results_path, f"removed_bundles_p-{p1}_f-{c1}")
+                        info_path_1 = join(removed_path_1, 'removed_info.yml')
 
-                    removed_path_2 = join(args.results_path, f"removed_bundles_p-{p2}_f-{c2}")
-                    info_path_2 = join(removed_path_2, 'removed_info.yml')
+                        removed_path_2 = join(args.results_path, f"removed_bundles_p-{p2}_f-{c2}")
+                        info_path_2 = join(removed_path_2, 'removed_info.yml')
 
-                    with open(info_path_1, "r") as info_file:
-                        info_file_1 = yaml.load(info_file)
-                    with open(info_path_2, "r") as info_file:
-                        info_file_2 = yaml.load(info_file)
+                        with open(info_path_1, "r") as info_file:
+                            info_file_1 = yaml.load(info_file)
+                        with open(info_path_2, "r") as info_file:
+                            info_file_2 = yaml.load(info_file)
 
-                    bundles_1 = info_file_1['bundles']
-                    nb_fibers_removed_1 = info_file_1['nb_fibers_removed']
-                    nb_bundles_removed_1 = info_file_1['nb_bundles_removed']
-                    nb_bundles_kept_1 = info_file_1['nb_bundles_kept']
-                    nb_bundles_1 = info_file_1['nb_bundles']
-                    bundles_removed_idx_1 = set(info_file_1['bundles_removed_idx'])
-                    bundles_kept_idx_1 = set(info_file_1['bundles_kept_idx'])
-                    avg_nb_fiber_1 = info_file_1['avg_nb_fiber']
-                    mean_avg_fiber_len_1 = info_file_1['mean_avg_fiber_len']
-                    median_avg_fiber_len_1 = info_file_1['median_avg_fiber_len']
-                    nb_fiber_per_bundle_1 = info_file_1['nb_fiber_per_bundle']
-                    avg_fib_len_per_bundle_1 = info_file_1['avg_fib_len_per_bundle']
+                        bundles_1 = info_file_1['bundles']
+                        nb_fibers_removed_1 = info_file_1['nb_fibers_removed']
+                        nb_bundles_removed_1 = info_file_1['nb_bundles_removed']
+                        nb_bundles_kept_1 = info_file_1['nb_bundles_kept']
+                        nb_bundles_1 = info_file_1['nb_bundles']
+                        bundles_removed_idx_1 = set(info_file_1['bundles_removed_idx'])
+                        bundles_kept_idx_1 = set(info_file_1['bundles_kept_idx'])
+                        avg_nb_fiber_1 = info_file_1['avg_nb_fiber']
+                        mean_avg_fiber_len_1 = info_file_1['mean_avg_fiber_len']
+                        median_avg_fiber_len_1 = info_file_1['median_avg_fiber_len']
+                        nb_fiber_per_bundle_1 = info_file_1['nb_fiber_per_bundle']
+                        avg_fib_len_per_bundle_1 = info_file_1['avg_fib_len_per_bundle']
 
-                    bundles_2 = info_file_2['bundles']
-                    nb_fibers_removed_2 = info_file_2['nb_fibers_removed']
-                    nb_bundles_removed_2 = info_file_2['nb_bundles_removed']
-                    nb_bundles_kept_2 = info_file_2['nb_bundles_kept']
-                    nb_bundles_2 = info_file_2['nb_bundles']
-                    bundles_removed_idx_2 = set(info_file_2['bundles_removed_idx'])
-                    bundles_kept_idx_2 = set(info_file_2['bundles_kept_idx'])
-                    avg_nb_fiber_2 = info_file_2['avg_nb_fiber']
-                    mean_avg_fiber_len_2 = info_file_2['mean_avg_fiber_len']
-                    median_avg_fiber_len_2 = info_file_2['median_avg_fiber_len']
-                    nb_fiber_per_bundle_2 = info_file_2['nb_fiber_per_bundle']
-                    avg_fib_len_per_bundle_2 = info_file_2['avg_fib_len_per_bundle']
+                        bundles_2 = info_file_2['bundles']
+                        nb_fibers_removed_2 = info_file_2['nb_fibers_removed']
+                        nb_bundles_removed_2 = info_file_2['nb_bundles_removed']
+                        nb_bundles_kept_2 = info_file_2['nb_bundles_kept']
+                        nb_bundles_2 = info_file_2['nb_bundles']
+                        bundles_removed_idx_2 = set(info_file_2['bundles_removed_idx'])
+                        bundles_kept_idx_2 = set(info_file_2['bundles_kept_idx'])
+                        avg_nb_fiber_2 = info_file_2['avg_nb_fiber']
+                        mean_avg_fiber_len_2 = info_file_2['mean_avg_fiber_len']
+                        median_avg_fiber_len_2 = info_file_2['median_avg_fiber_len']
+                        nb_fiber_per_bundle_2 = info_file_2['nb_fiber_per_bundle']
+                        avg_fib_len_per_bundle_2 = info_file_2['avg_fib_len_per_bundle']
 
-                    assert nb_bundles_2 == nb_bundles_1
-                    both_removed = bundles_removed_idx_1 & bundles_removed_idx_2
-                    both_kept = bundles_kept_idx_1 & bundles_kept_idx_2
-                    onlyc1 = bundles_removed_idx_1 - bundles_removed_idx_2
-                    onlyc2 = bundles_removed_idx_2 - bundles_removed_idx_1
+                        assert nb_bundles_2 == nb_bundles_1
+                        both_removed = bundles_removed_idx_1 & bundles_removed_idx_2
+                        both_kept = bundles_kept_idx_1 & bundles_kept_idx_2
+                        onlyc1 = bundles_removed_idx_1 - bundles_removed_idx_2
+                        onlyc2 = bundles_removed_idx_2 - bundles_removed_idx_1
 
-                    c1_avg_fib_len = np.mean([b['avg_fib_len'] for b in bundles_1 if b['index'] in onlyc1]).item()
-                    c1_nb_fiber = np.mean([b['nb_fiber'] for b in bundles_1 if b['index'] in onlyc1]).item()
+                        c1_avg_fib_len = np.mean([b['avg_fib_len'] for b in bundles_1 if b['index'] in onlyc1]).item()
+                        c1_nb_fiber = np.mean([b['nb_fiber'] for b in bundles_1 if b['index'] in onlyc1]).item()
 
-                    c2_avg_fib_len = np.mean([b['avg_fib_len'] for b in bundles_2 if b['index'] in onlyc2]).item()
-                    c2_nb_fiber = np.mean([b['nb_fiber'] for b in bundles_2 if b['index'] in onlyc2]).item()
+                        c2_avg_fib_len = np.mean([b['avg_fib_len'] for b in bundles_2 if b['index'] in onlyc2]).item()
+                        c2_nb_fiber = np.mean([b['nb_fiber'] for b in bundles_2 if b['index'] in onlyc2]).item()
 
-                    comparison = {'xboth_removed': list(both_removed), 'xboth_kept': list(both_kept),
-                                  f'xonly_{c1}_removed': list(onlyc1),
-                                  f'xonly_{c2}_removed': list(onlyc2), f'only_{c1}_removed_avg_fib_len': c1_avg_fib_len,
-                                  f'only_{c2}_removed_avg_fib_len': c2_avg_fib_len,
-                                  f'only_{c1}_removed_nb_fiber': c1_nb_fiber,
-                                  f'only_{c2}_removed_nb_fiber': c2_nb_fiber, f'{c1}_avg_nb_fiber': avg_nb_fiber_1,
-                                  f'{c2}_avg_nb_fiber': avg_nb_fiber_2,
-                                  f'{c1}_mean_avg_fiber_len': mean_avg_fiber_len_1,
-                                  f'{c2}_mean_avg_fiber_len': mean_avg_fiber_len_2,
-                                  f'{c1}_median_avg_fiber_len': median_avg_fiber_len_1,
-                                  f'{c2}_median_avg_fiber_len': median_avg_fiber_len_2,
-                                  f'{c1}_nb_bundles_removed': nb_bundles_removed_1,
-                                  f'{c2}_nb_bundles_removed': nb_bundles_removed_2,
-                                  f'{c1}_nb_fibers_removed': nb_fibers_removed_1,
-                                  f'{c2}_nb_fibers_removed': nb_fibers_removed_2,
-                                  f'{p1}_{c1}': info_path_1,
-                                  f'{p2}_{c2}': info_path_2}
+                        comparison = {'xboth_removed': list(both_removed), 'xboth_kept': list(both_kept),
+                                      f'xonly_{c1}_removed': list(onlyc1),
+                                      f'xonly_{c2}_removed': list(onlyc2), f'only_{c1}_removed_avg_fib_len': c1_avg_fib_len,
+                                      f'only_{c2}_removed_avg_fib_len': c2_avg_fib_len,
+                                      f'only_{c1}_removed_nb_fiber': c1_nb_fiber,
+                                      f'only_{c2}_removed_nb_fiber': c2_nb_fiber, f'{c1}_avg_nb_fiber': avg_nb_fiber_1,
+                                      f'{c2}_avg_nb_fiber': avg_nb_fiber_2,
+                                      f'{c1}_mean_avg_fiber_len': mean_avg_fiber_len_1,
+                                      f'{c2}_mean_avg_fiber_len': mean_avg_fiber_len_2,
+                                      f'{c1}_median_avg_fiber_len': median_avg_fiber_len_1,
+                                      f'{c2}_median_avg_fiber_len': median_avg_fiber_len_2,
+                                      f'{c1}_nb_bundles_removed': nb_bundles_removed_1,
+                                      f'{c2}_nb_bundles_removed': nb_bundles_removed_2,
+                                      f'{c1}_nb_fibers_removed': nb_fibers_removed_1,
+                                      f'{c2}_nb_fibers_removed': nb_fibers_removed_2,
+                                      f'{p1}_{c1}': info_path_1,
+                                      f'{p2}_{c2}': info_path_2}
 
-                    comp_path = join(args.results_path, f'comp_{c1}_{c2}_p1-{p1}_p2-{p2}.yml')
-                    print(f'Saving comparison to {comp_path}...')
-                    with open(comp_path, "w") as file:
-                        yaml.dump(comparison, file, default_flow_style=False)
+                        comp_path = join(args.results_path, f'comp_{c1}_{c2}_p1-{p1}_p2-{p2}.yml')
+                        print(f'Saving comparison to {comp_path}...')
+                        with open(comp_path, "w") as file:
+                            yaml.dump(comparison, file, default_flow_style=False)
 
-                    plt.figure()
-                    name = f'p-{p1}_f-{c1}'
-                    fig_path = join(args.results_path, name + '_fib_nb_hist.png')
-                    plt.hist(x=nb_fiber_per_bundle_1, bins='auto',
-                             color='#0504aa', alpha=0.7, rwidth=0.85)
-                    plt.title(f'Number of fibers per bundle at {name}')
-                    print(f'Saving plot to {fig_path}')
-                    plt.savefig(fig_path)
-                    plt.close()
+                        plt.figure()
+                        name = f'p-{p1}_f-{c1}'
+                        fig_path = join(args.results_path, name + '_fib_nb_hist.png')
+                        plt.hist(x=nb_fiber_per_bundle_1, bins='auto',
+                                 color='#0504aa', alpha=0.7, rwidth=0.85)
+                        plt.title(f'Number of fibers per bundle at {name}')
+                        print(f'Saving plot to {fig_path}')
+                        plt.savefig(fig_path)
+                        plt.close()
 
-                    plt.figure()
-                    name = f'p-{p1}_f-{c1}'
-                    fig_path = join(args.results_path, name + '_avg_len_fib_hist.png')
-                    plt.hist(x=avg_fib_len_per_bundle_1, bins='auto',
-                             color='#0504aa', alpha=0.7, rwidth=0.85)
-                    plt.title(f'Avg length of fibers per bundle at {name}')
-                    print(f'Saving plot to {fig_path}')
-                    plt.savefig(fig_path)
-                    plt.close()
+                        plt.figure()
+                        name = f'p-{p1}_f-{c1}'
+                        fig_path = join(args.results_path, name + '_avg_len_fib_hist.png')
+                        plt.hist(x=avg_fib_len_per_bundle_1, bins='auto',
+                                 color='#0504aa', alpha=0.7, rwidth=0.85)
+                        plt.title(f'Avg length of fibers per bundle at {name}')
+                        print(f'Saving plot to {fig_path}')
+                        plt.savefig(fig_path)
+                        plt.close()
 
-                    plt.figure()
-                    name = f'p-{p2}_f-{c2}'
-                    fig_path = join(args.results_path, name + '_fib_nb_hist.png')
-                    plt.hist(x=nb_fiber_per_bundle_2, bins='auto',
-                             color='#0504aa', alpha=0.7, rwidth=0.85)
-                    plt.title(f'Number of fibers per bundle at {name}')
-                    print(f'Saving plot to {fig_path}')
-                    plt.savefig(fig_path)
-                    plt.close()
+                        plt.figure()
+                        name = f'p-{p2}_f-{c2}'
+                        fig_path = join(args.results_path, name + '_fib_nb_hist.png')
+                        plt.hist(x=nb_fiber_per_bundle_2, bins='auto',
+                                 color='#0504aa', alpha=0.7, rwidth=0.85)
+                        plt.title(f'Number of fibers per bundle at {name}')
+                        print(f'Saving plot to {fig_path}')
+                        plt.savefig(fig_path)
+                        plt.close()
 
-                    plt.figure()
-                    name = f'p-{p2}_f-{c2}'
-                    fig_path = join(args.results_path, name + '_avg_len_fib_hist.png')
-                    plt.hist(x=avg_fib_len_per_bundle_2, bins='auto',
-                             color='#0504aa', alpha=0.7, rwidth=0.85)
-                    plt.title(f'Avg length of fibers per bundle at {name}')
-                    print(f'Saving plot to {fig_path}')
-                    plt.savefig(fig_path)
-                    plt.close()
+                        plt.figure()
+                        name = f'p-{p2}_f-{c2}'
+                        fig_path = join(args.results_path, name + '_avg_len_fib_hist.png')
+                        plt.hist(x=avg_fib_len_per_bundle_2, bins='auto',
+                                 color='#0504aa', alpha=0.7, rwidth=0.85)
+                        plt.title(f'Avg length of fibers per bundle at {name}')
+                        print(f'Saving plot to {fig_path}')
+                        plt.savefig(fig_path)
+                        plt.close()
 
     x_axis = args.max_curv if args.action == "track_vis" else args.percentiles
     fig, ax = plt.subplots()
@@ -211,15 +212,16 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Filter unlikely fibers.")
-    parser.add_argument("--action", type=str, default='bundle_filter',
-                        choices=['bundle_filter', 'fiber_filter', 'track_vis'])
     parser.add_argument("results_path", type=str)
+    parser.add_argument("--filter", type=str, default='bundle_filter',
+                        choices=['bundle_filter', 'fiber_filter', 'track_vis'])
     parser.add_argument('--percentiles', nargs='+', type=int, default=[],
                         help="list of percentiles to try")
     parser.add_argument('--criteria', nargs='+', type=str, default=FILTERS,
                         help="list of criteria to try")
     parser.add_argument('--max_curv', nargs='+', type=str, default=[],
-                        help="list of criteria to try")
+                        help="list of max curves to try. Only for track_vis")
+    parser.add_argument('--compare')
     args = parser.parse_args()
 
     compare(args)
