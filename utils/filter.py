@@ -149,7 +149,7 @@ def filter_bundles(config, name='filter_run'):
     bundles_removed_idx = [b['index'] for b in filtered_bundles]
     bundles_kept_idx = kept_bundles_idx
 
-    nb_fibers_removed = np.sum([b['nb_fiber'] for b in filtered_bundles]).iteam()
+    nb_fibers_removed = np.sum([b['nb_fiber'] for b in filtered_bundles]).item()
     nb_fiber_per_bundle = [b['nb_fiber'] for b in filtered_bundles]
     avg_fib_len_per_bundle = [b['avg_fib_len'] for b in filtered_bundles]
 
@@ -239,10 +239,10 @@ if __name__ == '__main__':
             filter_func = filter_bundles
 
             print("Clustering fibers ...")
-            # feature = ResampleFeature(nb_points=config['centroid_size'])
+            feature = ResampleFeature(nb_points=config['centroid_size'])
             qb = QuickBundles(
                 threshold=config['cluster_thresh'],
-                metric=AveragePointwiseEuclideanMetric()
+                metric=AveragePointwiseEuclideanMetric(feature)
             )
 
             bundles = qb.cluster(config['trk_file'].tractogram.streamlines)
