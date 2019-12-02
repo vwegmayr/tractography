@@ -107,7 +107,7 @@ def filter_bundles(config, name='filter_run'):
         else:
             cluster_tracts = tractogram.streamlines[b.indices]
             curvatures = [fiber_curvature(fiber) for fiber in cluster_tracts]
-            values[i] = np.mean([max(fiber)[0] for fiber in curvatures])
+            values[i] = 1 / np.mean([max(fiber)[0] for fiber in curvatures])
 
     threshold_value = np.percentile(values, config["percentile"])
     print(f"Threshold value {threshold_value} "
@@ -118,10 +118,7 @@ def filter_bundles(config, name='filter_run'):
     filtered_bundles_idx = []
     kept_bundles_idx = []
     for i, cluster_value in enumerate(values):
-        if (config['filter_name'] != 'curvature'
-                and cluster_value < threshold_value) or \
-            (config['filter_name'] == 'curvature'
-             and cluster_value > threshold_value):
+        if cluster_value < threshold_value:
 
             # Save bundle info
             filtered_bundles_idx.append(i)
