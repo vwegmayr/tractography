@@ -213,7 +213,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Filter unlikely fibers.")
     parser.add_argument("results_path", type=str)
-    parser.add_argument("--filter", type=str, default='bundle_filter',
+    parser.add_argument("--action", type=str, default='bundle_filter',
                         choices=['bundle_filter', 'fiber_filter', 'track_vis'])
     parser.add_argument('--percentiles', nargs='+', type=int, default=[],
                         help="list of percentiles to try")
