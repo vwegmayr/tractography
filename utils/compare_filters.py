@@ -155,39 +155,43 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
                     plt.figure()
                     name = f'p-{p1}_f-{c1}'
-                    fig_path = join(args.results_path, name + 'hist.png')
+                    fig_path = join(args.results_path, name + '_fib_nb_hist.png')
                     plt.hist(x=nb_fiber_per_bundle_1, bins='auto',
                              color='#0504aa', alpha=0.7, rwidth=0.85)
                     plt.title(f'Number of fibers per bundle at {name}')
                     print(f'Saving plot to {fig_path}')
                     plt.savefig(fig_path)
+                    plt.close()
 
                     plt.figure()
                     name = f'p-{p1}_f-{c1}'
-                    fig_path = join(args.results_path, name + 'hist.png')
+                    fig_path = join(args.results_path, name + '_avg_len_fib_hist.png')
                     plt.hist(x=avg_fib_len_per_bundle_1, bins='auto',
                              color='#0504aa', alpha=0.7, rwidth=0.85)
                     plt.title(f'Avg length of fibers per bundle at {name}')
                     print(f'Saving plot to {fig_path}')
                     plt.savefig(fig_path)
+                    plt.close()
 
                     plt.figure()
                     name = f'p-{p2}_f-{c2}'
-                    fig_path = join(args.results_path, name + 'hist.png')
+                    fig_path = join(args.results_path, name + '_fib_nb_hist.png')
                     plt.hist(x=nb_fiber_per_bundle_2, bins='auto',
                              color='#0504aa', alpha=0.7, rwidth=0.85)
                     plt.title(f'Number of fibers per bundle at {name}')
                     print(f'Saving plot to {fig_path}')
                     plt.savefig(fig_path)
+                    plt.close()
 
                     plt.figure()
                     name = f'p-{p2}_f-{c2}'
-                    fig_path = join(args.results_path, name + 'hist.png')
+                    fig_path = join(args.results_path, name + '_avg_len_fib_hist.png')
                     plt.hist(x=avg_fib_len_per_bundle_2, bins='auto',
                              color='#0504aa', alpha=0.7, rwidth=0.85)
                     plt.title(f'Avg length of fibers per bundle at {name}')
                     print(f'Saving plot to {fig_path}')
                     plt.savefig(fig_path)
+                    plt.close()
 
     x_axis = args.max_curv if args.action == "track_vis" else args.percentiles
     fig, ax = plt.subplots()
