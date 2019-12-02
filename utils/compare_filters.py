@@ -46,7 +46,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                 scores = json.load(json_file)
 
             criteria_scores['track_vis'].append(scores[score_name])
-            criteria_scores['baseline'].append(baseline)
+            # criteria_scores['baseline'].append(baseline)
 
     else:
         for criteria in args.criteria:
@@ -72,7 +72,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                     scores = json.load(json_file)
 
                 criteria_scores[criteria].append(scores[score_name])
-            criteria_scores['baseline'].append(baseline)
+            # criteria_scores['baseline'].append(baseline)
 
         # Info on bundles
         crit_pairs = list(set(itertools.product(args.criteria, args.criteria)))
