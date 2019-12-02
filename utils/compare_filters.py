@@ -93,6 +93,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                         info_file_2 = yaml.load(info_file)
 
                     bundles_1 = info_file_1['bundles']
+                    nb_fibers_removed_1 = info_file_1['nb_fibers_removed']
                     nb_bundles_removed_1 = info_file_1['nb_bundles_removed']
                     nb_bundles_kept_1 = info_file_1['nb_bundles_kept']
                     nb_bundles_1 = info_file_1['nb_bundles']
@@ -101,8 +102,11 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                     avg_nb_fiber_1 = info_file_1['avg_nb_fiber']
                     mean_avg_fiber_len_1 = info_file_1['mean_avg_fiber_len']
                     median_avg_fiber_len_1 = info_file_1['median_avg_fiber_len']
+                    nb_fiber_per_bundle_1 = info_file_1['nb_fiber_per_bundle']
+                    avg_fib_len_per_bundle_1 = info_file_1['avg_fib_len_per_bundle']
 
                     bundles_2 = info_file_2['bundles']
+                    nb_fibers_removed_2 = info_file_2['nb_fibers_removed']
                     nb_bundles_removed_2 = info_file_2['nb_bundles_removed']
                     nb_bundles_kept_2 = info_file_2['nb_bundles_kept']
                     nb_bundles_2 = info_file_2['nb_bundles']
@@ -111,6 +115,8 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                     avg_nb_fiber_2 = info_file_2['avg_nb_fiber']
                     mean_avg_fiber_len_2 = info_file_2['mean_avg_fiber_len']
                     median_avg_fiber_len_2 = info_file_2['median_avg_fiber_len']
+                    nb_fiber_per_bundle_2 = info_file_2['nb_fiber_per_bundle']
+                    avg_fib_len_per_bundle_2 = info_file_2['avg_fib_len_per_bundle']
 
                     assert nb_bundles_2 == nb_bundles_1
                     both_removed = bundles_removed_idx_1 & bundles_removed_idx_2
@@ -136,12 +142,52 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                                   f'{c1}_median_avg_fiber_len': median_avg_fiber_len_1,
                                   f'{c2}_median_avg_fiber_len': median_avg_fiber_len_2,
                                   f'{c1}_nb_bundles_removed': nb_bundles_removed_1,
-                                  f'{c2}_nb_bundles_removed': nb_bundles_removed_2}
+                                  f'{c2}_nb_bundles_removed': nb_bundles_removed_2,
+                                  f'{c1}_nb_fibers_removed': nb_fibers_removed_1,
+                                  f'{c2}_nb_fibers_removed': nb_fibers_removed_2,
+                                  f'{p1}_{c1}': info_path_1,
+                                  f'{p2}_{c2}': info_path_2}
 
                     comp_path = join(args.results_path, f'comp_{c1}_{c2}_p1-{p1}_p2-{p2}.yml')
                     print(f'Saving comparison to {comp_path}...')
                     with open(comp_path, "w") as file:
                         yaml.dump(comparison, file, default_flow_style=False)
+
+                    plt.figure()
+                    name = f'p-{p1}_f-{c1}'
+                    fig_path = join(args.results_path, name + 'hist.png')
+                    plt.hist(x=nb_fiber_per_bundle_1, bins='auto',
+                             color='#0504aa', alpha=0.7, rwidth=0.85)
+                    plt.title(f'Number of fibers per bundle at {name}')
+                    print(f'Saving plot to {fig_path}')
+                    plt.savefig(fig_path)
+
+                    plt.figure()
+                    name = f'p-{p1}_f-{c1}'
+                    fig_path = join(args.results_path, name + 'hist.png')
+                    plt.hist(x=avg_fib_len_per_bundle_1, bins='auto',
+                             color='#0504aa', alpha=0.7, rwidth=0.85)
+                    plt.title(f'Avg length of fibers per bundle at {name}')
+                    print(f'Saving plot to {fig_path}')
+                    plt.savefig(fig_path)
+
+                    plt.figure()
+                    name = f'p-{p2}_f-{c2}'
+                    fig_path = join(args.results_path, name + 'hist.png')
+                    plt.hist(x=nb_fiber_per_bundle_2, bins='auto',
+                             color='#0504aa', alpha=0.7, rwidth=0.85)
+                    plt.title(f'Number of fibers per bundle at {name}')
+                    print(f'Saving plot to {fig_path}')
+                    plt.savefig(fig_path)
+
+                    plt.figure()
+                    name = f'p-{p2}_f-{c2}'
+                    fig_path = join(args.results_path, name + 'hist.png')
+                    plt.hist(x=avg_fib_len_per_bundle_2, bins='auto',
+                             color='#0504aa', alpha=0.7, rwidth=0.85)
+                    plt.title(f'Avg length of fibers per bundle at {name}')
+                    print(f'Saving plot to {fig_path}')
+                    plt.savefig(fig_path)
 
     x_axis = args.max_curv if args.action == "track_vis" else args.percentiles
     fig, ax = plt.subplots()

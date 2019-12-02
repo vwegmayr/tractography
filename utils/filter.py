@@ -149,9 +149,13 @@ def filter_bundles(config, name='filter_run'):
     bundles_removed_idx = [b['index'] for b in filtered_bundles]
     bundles_kept_idx = kept_bundles_idx
 
-    avg_nb_fiber = np.mean([b['nb_fiber'] for b in filtered_bundles]).item()
-    mean_avg_fiber_len = np.mean([b['avg_fib_len'] for b in filtered_bundles]).item()
-    median_avg_fiber_len = np.median([b['avg_fib_len'] for b in filtered_bundles]).item()
+    nb_fibers_removed = np.sum([b['nb_fiber'] for b in filtered_bundles]).iteam()
+    nb_fiber_per_bundle = [b['nb_fiber'] for b in filtered_bundles]
+    avg_fib_len_per_bundle = [b['avg_fib_len'] for b in filtered_bundles]
+
+    avg_nb_fiber = np.mean(nb_fiber_per_bundle).item()
+    mean_avg_fiber_len = np.mean(avg_fib_len_per_bundle).item()
+    median_avg_fiber_len = np.median(avg_fib_len_per_bundle).item()
     filtered_bundles = {'bundles': filtered_bundles,
                         'nb_bundles_removed': nb_bundles_removed,
                         'nb_bundles_kept': nb_bundles_kept,
@@ -160,7 +164,11 @@ def filter_bundles(config, name='filter_run'):
                         'bundles_kept_idx': bundles_kept_idx,
                         'avg_nb_fiber': avg_nb_fiber,
                         'mean_avg_fiber_len': mean_avg_fiber_len,
-                        'median_avg_fiber_len': median_avg_fiber_len}
+                        'median_avg_fiber_len': median_avg_fiber_len,
+                        'nb_fibers_removed': nb_fibers_removed,
+                        'nb_fiber_per_bundle': nb_fiber_per_bundle,
+                        'avg_fib_len_per_bundle': avg_fib_len_per_bundle}
+
     with open(join(removed_out_dir, 'removed_info.yml'), "w") as file:
             yaml.dump(filtered_bundles, file, default_flow_style=False)
     print(f"{name}: average number of fibers: {avg_nb_fiber} | mean average length: {mean_avg_fiber_len}")
