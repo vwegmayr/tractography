@@ -10,7 +10,6 @@ from tensorflow.keras.layers import (Input, Reshape, Dropout,
 
 from utils.config import deep_update
 from utils.training import Temperature
-from dipy.io.gradients import read_bvals_bvecs
 
 from utils import sequences
 
@@ -70,7 +69,7 @@ class OneHotCategorical(tfd.OneHotCategorical):
 
     def __init__(self, bvecs_path, *args, **kwargs):
         tfd.OneHotCategorical.__init__(self, *args, **kwargs)
-        _, bvecs = read_bvals_bvecs(None, bvecs_path)
+        bvecs = np.load(bvecs_path)
         self.bvecs = tf.convert_to_tensor(bvecs, dtype=np.float32)
 
     @property
@@ -410,6 +409,7 @@ class RNNLSTM(RNNModel):
         hidden_size = [500, 500]  # Fixed
 
         x = LSTM(hidden_size[0], return_sequences=True, stateful=True)(inputs)
+
         if len(hidden_size) > 1:
             for hidden_size in hidden_size[1:-1]:
                 x = LSTM(hidden_size, return_sequences=True, stateful=True)(x)

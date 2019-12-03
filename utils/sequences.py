@@ -4,7 +4,6 @@ import numpy as np
 
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.utils import to_categorical
-from dipy.io.gradients import read_bvals_bvecs
 
 
 class Samples(Sequence):
@@ -296,7 +295,7 @@ class ClassifierSamples(FvMSamples):
         super(ClassifierSamples, self).__init__(*args, **kwargs)
         print("Loading {} samples...".format("train" if self.istraining else "eval"))
         configs = args[0]
-        _, self.bvecs = read_bvals_bvecs(None, configs["bvec_path"])
+        self.bvecs = np.load(configs["bvec_path"])
 
     def __getitem__(self, idx):
         inputs, outgoing = super(ClassifierSamples, self).__getitem__(idx)
