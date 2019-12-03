@@ -1,12 +1,14 @@
 marked_trk_path: subjects/ismrm_basic/marked_fibers/2019-11-25=22:06:30/marked.trk
+#marked_trk_path: subjects/ismrm_basic/marked_fibers/2019-11-29=10:56:48/marked.trk
 trk_path: subjects/ismrm_basic/predicted_fibers/2019-11-14-09:36:59/2019-11-14-09:36:59.trk 
+#trk_path: /local/home/vwegmayr/ijcv19/subjects/ismrm_basic/mitk_11_s=5_n=auto.trk
 
-filter_name: log_prob_sum  # will be ignored if given as arg
+filter_name: log_prob  # will be ignored if given as arg
 percentile: 10 # percentile  # will be ignored if given as arg
 apply_k: False
 
 centroid_size: 200
-cluster_thresh: 15
+cluster_thresh: 20
 
 max_curv: 50  # will be ignored if given as arg
 
