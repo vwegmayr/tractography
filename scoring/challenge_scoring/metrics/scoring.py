@@ -225,7 +225,7 @@ def score_submission(streamlines_fname,
     scores['IB'] = nb_ib
     scores['streamlines_per_bundle'] = streamlines_per_bundle
     scores['total_streamlines_count'] = total_strl_count
-    scores['ami_rejected_streamlines'] = rejected_streamlines
+    #scores['ami_rejected_streamlines'] = rejected_streamlines
     scores['ami_bundles_found'] = bundles_found
     scores['ami_VC_indices'] = VC_indices
 
