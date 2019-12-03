@@ -154,7 +154,7 @@ def score_submission(streamlines_fname,
     full_strl = [s for s in streamlines_gen]
 
     # Extract VCs and VBs
-    VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
+    VC_indices, found_vbs_info, bundles_found = auto_extract_VCs(full_strl, ref_bundles)
     VC = len(VC_indices)
 
     if save_VBs or save_full_vc:
@@ -225,6 +225,9 @@ def score_submission(streamlines_fname,
     scores['IB'] = nb_ib
     scores['streamlines_per_bundle'] = streamlines_per_bundle
     scores['total_streamlines_count'] = total_strl_count
+    scores['ami_rejected_streamlines'] = rejected_streamlines
+    scores['ami_bundles_found'] = bundles_found
+    scores['ami_VC_indices'] = VC_indices
 
     # Get bundle overlap, overreach and f1-score for each bundle.
     scores['overlap_per_bundle'] = {k: v["overlap"] for k, v in found_vbs_info.items()}
