@@ -169,6 +169,8 @@ def score_submission(streamlines_fname,
 
     candidate_ic_streamlines = []
     rejected_streamlines = []
+    rejected_idx = []
+    candidate_idx = []
 
     # Chosen from GT dataset
     length_thres = 35.
@@ -177,8 +179,10 @@ def score_submission(streamlines_fname,
     for idx in candidate_ic_strl_indices:
         if slength(full_strl[idx]) >= length_thres:
             candidate_ic_streamlines.append(full_strl[idx].astype('f4'))
+            candidate_idx.append(idx)
         else:
             rejected_streamlines.append(full_strl[idx].astype('f4'))
+            rejected_idx.append(idx)
 
     logging.debug('Found {} candidate IC'.format(len(candidate_ic_streamlines)))
     logging.debug('Found {} streamlines that were too short'.format(len(rejected_streamlines)))
@@ -187,14 +191,16 @@ def score_submission(streamlines_fname,
     nb_ib = 0
 
     if len(candidate_ic_streamlines):
-        additional_rejected, ic_counts, nb_ib = group_and_assign_ibs(
-                                                   candidate_ic_streamlines,
-                                                   ROIs, save_IBs, save_full_ic,
-                                                   segmented_out_dir,
-                                                   segmented_base_name,
-                                                   ref_anat_fname)
+        additional_rejected, ic_counts, nb_ib, rejected_c_idx = \
+            group_and_assign_ibs(
+                                   candidate_ic_streamlines,
+                                   ROIs, save_IBs, save_full_ic,
+                                   segmented_out_dir,
+                                   segmented_base_name,
+                                   ref_anat_fname)
 
         rejected_streamlines.extend(additional_rejected)
+        rejected_idx.append([candidate_idx[c_idx] for c_idx in rejected_c_idx])
 
     if ic_counts != len(candidate_ic_strl_indices) - len(rejected_streamlines):
         raise ValueError("Some streamlines were not correctly assigned to NC")
@@ -225,7 +231,7 @@ def score_submission(streamlines_fname,
     scores['IB'] = nb_ib
     scores['streamlines_per_bundle'] = streamlines_per_bundle
     scores['total_streamlines_count'] = total_strl_count
-    #scores['ami_rejected_streamlines'] = rejected_streamlines
+    scores['ami_rejected_indices'] = rejected_idx
     scores['ami_bundles_found'] = bundles_found
     scores['ami_VC_indices'] = VC_indices
 
