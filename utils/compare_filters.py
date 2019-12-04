@@ -274,6 +274,9 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                 ax.plot(x_axis, values, label=key)
     legend = ax.legend()
     plt.title(f'{score_name}')
+    plt.xticks(x_axis)
+    for xc in x_axis:
+        plt.axvline(x=xc, linestyle=':', color='cornflowerblue', linewidth=1)
     fig_path = join(args.results_path, f'compare_{args.action}_{args.criteria}_{score_name}.png')
     print(f'Saving plot to {fig_path}')
     plt.savefig(fig_path)
