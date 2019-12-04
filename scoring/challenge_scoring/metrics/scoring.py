@@ -225,9 +225,8 @@ def score_submission(streamlines_fname,
     scores['IB'] = nb_ib
     scores['streamlines_per_bundle'] = streamlines_per_bundle
     scores['total_streamlines_count'] = total_strl_count
-    #scores['ami_rejected_streamlines'] = rejected_streamlines
     scores['ami_bundles_found'] = bundles_found
-    scores['ami_VC_indices'] = VC_indices
+    scores['ami_VC_indices'] = list(VC_indices)
 
     # Get bundle overlap, overreach and f1-score for each bundle.
     scores['overlap_per_bundle'] = {k: v["overlap"] for k, v in found_vbs_info.items()}
