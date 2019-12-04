@@ -117,6 +117,7 @@ def filter_bundles(config, name='filter_run'):
     filtered_bundles = []
     filtered_bundles_idx = []
     kept_bundles_idx = []
+    removed_streams = []
     for i, cluster_value in enumerate(values):
         if cluster_value < threshold_value:
 
@@ -137,6 +138,7 @@ def filter_bundles(config, name='filter_run'):
             # Finally remove the fibers in that bundle
             for index in bundles.clusters[i].indices:
                 keep.remove(index)
+                removed_streams.append(index)
         else:
             kept_bundles_idx.append(i)
 
@@ -167,7 +169,9 @@ def filter_bundles(config, name='filter_run'):
                         'median_avg_fiber_len': median_avg_fiber_len,
                         'nb_fibers_removed': nb_fibers_removed,
                         'nb_fiber_per_bundle': nb_fiber_per_bundle,
-                        'avg_fib_len_per_bundle': avg_fib_len_per_bundle}
+                        'avg_fib_len_per_bundle': avg_fib_len_per_bundle,
+                        'removed_streams_idx': removed_streams,
+                        'kept_streams_idx': keep}
 
     with open(join(removed_out_dir, 'removed_info.yml'), "w") as file:
             yaml.dump(filtered_bundles, file, default_flow_style=False)
