@@ -24,6 +24,25 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
     assert all(args.percentiles[i] <= args.percentiles[i+1]
                for i in range(len(args.percentiles)-1)), 'percentiles must be sorted'
 
+    def get_scores(percentile, criteria):
+        ext = 'bund' if args.action == 'bundle_filter' else 'fib'
+        scoring_dir = join(args.results_path,
+                           f"scorings_p_{percentile}-f_{criteria}_{ext}")
+        if not isdir(scoring_dir):
+            raise FileNotFoundError(f'File {scoring_dir} does not exist!')
+
+        scoring_dir = join(scoring_dir, "scores")
+        json_path = [file for file in listdir(scoring_dir)
+                     if file.endswith('.json')][0]
+
+        # Un comment for local use!
+        # json_path = join(args.results_path, f'{criteria}_{percentile}_fib_k=f.json')
+        # json_path = join(args.results_path, f'{criteria}_{percentile}_bund.json')
+
+        with open(join(scoring_dir, json_path)) as json_file:
+            scores = json.load(json_file)
+        return scores
+
     # Add one list for each filtering criteria
     criteria_scores = {'baseline': []}
 
@@ -54,23 +73,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
 
         for percentile in args.percentiles:
             for criteria in args.criteria:
-                ext = 'bund' if args.action == 'bundle_filter' else 'fib'
-                scoring_dir = join(args.results_path,
-                                   f"scorings_p_{percentile}-f_{criteria}_{ext}")
-                if not isdir(scoring_dir):
-                    raise FileNotFoundError(f'File {scoring_dir} does not exist!')
-
-                scoring_dir = join(scoring_dir, "scores")
-                json_path = [file for file in listdir(scoring_dir)
-                             if file.endswith('.json')][0]
-
-                # Un comment for local use!
-                # json_path = join(args.results_path, f'{criteria}_{percentile}_fib_k=f.json')
-                # json_path = join(args.results_path, f'{criteria}_{percentile}_bund.json')
-
-                with open(join(scoring_dir, json_path)) as json_file:
-                    scores = json.load(json_file)
-
+                scores = get_scores(percentile, criteria)
                 criteria_scores[criteria].append(scores[score_name])
             # criteria_scores['baseline'].append(baseline)
 
@@ -93,6 +96,15 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                         with open(info_path_2, "r") as info_file:
                             info_file_2 = yaml.load(info_file)
 
+                        scores_gt = get_scores(0, c1)
+                        rrejected_gt = scores_gt['ami_rejected_indices']
+                        rejected_gt = np.concatenate([[s for l in rrejected_gt
+                                                        if type(l) != np.int for
+                                                        s in l],
+                                                       [s for s in rrejected_gt
+                                                        if type(s) == np.int]])
+                        vc_gt = scores_gt['ami_VC_indices']
+
                         bundles_1 = info_file_1['bundles']
                         nb_fibers_removed_1 = info_file_1['nb_fibers_removed']
                         nb_bundles_removed_1 = info_file_1['nb_bundles_removed']
@@ -105,6 +117,25 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                         median_avg_fiber_len_1 = info_file_1['median_avg_fiber_len']
                         nb_fiber_per_bundle_1 = info_file_1['nb_fiber_per_bundle']
                         avg_fib_len_per_bundle_1 = info_file_1['avg_fib_len_per_bundle']
+                        kept_streams_idx_1 = info_file_1['kept_streams_idx']
+                        removed_streams_idx_1 = info_file_1['removed_streams_idx']
+
+                        fibers_nb_1 = len(kept_streams_idx_1) + len(
+                            removed_streams_idx_1)
+                        all_fibers_indices_1 = range(fibers_nb_1)
+                        ic_indices_1 = list(set(all_fibers_indices_1) - set(vc_gt))
+
+                        vc_fiber_precision_1 = \
+                            len(np.intersect1d(kept_streams_idx_1, vc_gt)) / len(kept_streams_idx_1)
+                        vc_fiber_recall_1 = \
+                            len(np.intersect1d(kept_streams_idx_1, vc_gt)) / len(vc_gt)
+                        nc_fiber_precision_1 = len(np.intersect1d(removed_streams_idx_1, rejected_gt)) / len(removed_streams_idx_1)
+                        nc_fiber_recall_1 = len(np.intersect1d(removed_streams_idx_1, rejected_gt)) / len(rejected_gt)
+                        ic_fiber_precision_1 = len(np.intersect1d(removed_streams_idx_1, ic_indices_1)) / len(removed_streams_idx_1)
+                        ic_fiber_recall_1 = len(np.intersect1d(removed_streams_idx_1, ic_indices_1)) / len(ic_indices_1)
+                        ic_f1_1 = 2 * (
+                                    ic_fiber_precision_1 * ic_fiber_recall_1) / (
+                                              ic_fiber_precision_1 + ic_fiber_recall_1)
 
                         bundles_2 = info_file_2['bundles']
                         nb_fibers_removed_2 = info_file_2['nb_fibers_removed']
@@ -118,8 +149,32 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                         median_avg_fiber_len_2 = info_file_2['median_avg_fiber_len']
                         nb_fiber_per_bundle_2 = info_file_2['nb_fiber_per_bundle']
                         avg_fib_len_per_bundle_2 = info_file_2['avg_fib_len_per_bundle']
+                        kept_streams_idx_2 = info_file_2['kept_streams_idx']
+                        removed_streams_idx_2 = info_file_2['removed_streams_idx']
+                        fibers_nb_2 = len(kept_streams_idx_2) + len(
+                            removed_streams_idx_2)
+                        vc_fiber_precision_2 = \
+                            len(np.intersect1d(kept_streams_idx_2, vc_gt)) / len(kept_streams_idx_2)
+                        vc_fiber_recall_2 = \
+                            len(np.intersect1d(kept_streams_idx_2, vc_gt)) / len(vc_gt)
+                        nc_fiber_precision_2 = len(
+                            np.intersect1d(removed_streams_idx_2,
+                                           rejected_gt)) / len(
+                            removed_streams_idx_2)
+                        nc_fiber_recall_2 = len(
+                            np.intersect1d(removed_streams_idx_2,
+                                           rejected_gt)) / len(rejected_gt)
+                        ic_fiber_precision_2 = len(
+                            np.intersect1d(removed_streams_idx_2,
+                                           ic_indices_1)) / len(
+                            removed_streams_idx_2)
+                        ic_fiber_recall_2 = len(
+                            np.intersect1d(removed_streams_idx_2,
+                                           ic_indices_1)) / len(ic_indices_1)
+                        ic_f1_2 = 2 * (ic_fiber_precision_2 * ic_fiber_recall_2) / (ic_fiber_precision_2 + ic_fiber_recall_2)
 
                         assert nb_bundles_2 == nb_bundles_1
+                        assert fibers_nb_2 == fibers_nb_1
                         both_removed = bundles_removed_idx_1 & bundles_removed_idx_2
                         both_kept = bundles_kept_idx_1 & bundles_kept_idx_2
                         onlyc1 = bundles_removed_idx_1 - bundles_removed_idx_2
@@ -147,7 +202,22 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                                       f'{c1}_nb_fibers_removed': nb_fibers_removed_1,
                                       f'{c2}_nb_fibers_removed': nb_fibers_removed_2,
                                       f'{p1}_{c1}': info_path_1,
-                                      f'{p2}_{c2}': info_path_2}
+                                      f'{p2}_{c2}': info_path_2,
+                                      f'vc_fiber_precision_{c1}': vc_fiber_precision_1,
+                                      f'vc_fiber_recall_{c1}': vc_fiber_recall_1,
+                                      f'vc_fiber_precision_{c2}': vc_fiber_precision_2,
+                                      f'vc_fiber_recall_{c2}': vc_fiber_recall_2,
+                                      f'nc_fiber_precision_{c1}': nc_fiber_precision_1,
+                                      f'nc_fiber_recall_{c1}': nc_fiber_recall_1,
+                                      f'nc_fiber_precision_{c2}': nc_fiber_precision_2,
+                                      f'nc_fiber_recall_{c2}': nc_fiber_recall_2,
+                                      f'ic_fiber_precision_{c1}': ic_fiber_precision_1,
+                                      f'ic_fiber_recall_{c1}': ic_fiber_recall_1,
+                                      f'ic_fiber_precision_{c2}': ic_fiber_precision_2,
+                                      f'ic_fiber_recall_{c2}': ic_fiber_recall_2,
+                                      f'ic_f1_{c1}': ic_f1_1,
+                                      f'ic_f1_{c2}': ic_f1_2
+                                      }
 
                         comp_path = join(args.results_path, f'comp_{c1}_{c2}_p1-{p1}_p2-{p2}.yml')
                         print(f'Saving comparison to {comp_path}...')
@@ -221,7 +291,7 @@ if __name__ == '__main__':
                         help="list of criteria to try")
     parser.add_argument('--max_curv', nargs='+', type=str, default=[],
                         help="list of max curves to try. Only for track_vis")
-    parser.add_argument('--compare')
+    parser.add_argument('--compare', action="store_true")
     args = parser.parse_args()
 
     compare(args)
