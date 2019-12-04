@@ -11,7 +11,7 @@ shuffle: False
 
 train_path: /local/tract/conditional_samples/992774/2019-11-20-14:42:16/  # 0.2 keep
 eval_path: /local/tract/conditional_samples/644044/2019-11-19-15:39:21/ # 0.01 keep
-bvec_path: subjects/992774/bvecs_input
+bvec_path: subjects/vector_classes.npy
 
 callbacks:
   ModelCheckpoint:

@@ -258,7 +258,7 @@ class Trackifier(Model):
 
         x = Dense(1024, activation="relu")(x)
         x = Dense(1024, activation="relu")(x)
-        x = Dense(108, activation="softmax", name='output')(x)
+        x = Dense(100, activation="softmax", name='output')(x)
 
         return tfp.layers.DistributionLambda(
             make_distribution_fn=lambda params: OneHotCategorical(bvecs_path,
