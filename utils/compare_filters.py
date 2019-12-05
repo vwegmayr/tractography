@@ -265,7 +265,7 @@ def compare_score(args, score_name='mean_F1', baseline=0.47369345142021646):
                         plt.close()
 
     x_axis = args.max_curv if args.action == "track_vis" else args.percentiles
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(12, 7))
     for key, values in criteria_scores.items():
         if len(values) > 0:
             if key == 'baseline':
