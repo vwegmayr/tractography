@@ -413,7 +413,7 @@ class RNNLSTM(RNNModel):
         if len(hidden_size) > 1:
             for hidden_size in hidden_size[1:-1]:
                 x = LSTM(hidden_size, return_sequences=True, stateful=True)(x)
-            x = LSTM(hidden_size[-1], return_sequences=True, stateful=True)(x)
+            x = LSTM(hidden_size[-1], return_sequences=False, stateful=True)(x)
         x = Dense(3, activation='linear', name='fvm')(x)
         return x
 
