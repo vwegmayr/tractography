@@ -34,7 +34,7 @@ def priority_print(msg):
 
 
 def get_gpus():
-    return getAvailable(limit=8, maxLoad=10**-6, maxMemory=10**-1)
+    return getAvailable(order="random", limit=8, maxLoad=10**-6, maxMemory=10**-2)
 
 
 def n_gpus():

@@ -19,6 +19,9 @@ random.seed(12345)
 
 def interpolate(idx, dwi, block_size):
 
+    if dwi.ndim == 3:
+        dwi = dwi[:, :, :, np.newaxis]
+
     IDX = np.round(idx).astype(int)
 
     values = np.zeros([3, 3, 3,
@@ -40,7 +43,8 @@ def interpolate(idx, dwi, block_size):
     return (fn([idx[0]-IDX[0], idx[1]-IDX[1], idx[2]-IDX[2]])[0]).flatten()
 
 
-def generate_conditional_samples(dwi,
+def generate_conditional_samples(fa_data,
+                                 dwi,
                                  tracts,
                                  dwi_xyz2ijk,
                                  block_size,
@@ -53,6 +57,7 @@ def generate_conditional_samples(dwi,
         dtype="float32")
     outgoing = np.zeros([n_samples, 3], dtype="float32")
     isterminal = np.zeros(n_samples, dtype="float32")
+    FA = np.zeros(n_samples, dtype="float32")
     done=False
     n = 0
     for tract in tracts:
@@ -63,6 +68,8 @@ def generate_conditional_samples(dwi,
             d = interpolate(idx, dwi, block_size)
             dnorm = np.linalg.norm(d)
             d /= (dnorm + 10**-2)
+            #-------------------------------------------------------------------
+            FA[n] = interpolate(idx, fa_data, 1)
             #-------------------------------------------------------------------
             if i == 0:
                 vout = - tract.data_for_points["t"][i]
@@ -90,7 +97,7 @@ def generate_conditional_samples(dwi,
         if done:
             return (n_samples,
                 {"inputs": inputs, "isterminal": isterminal,
-                 "outgoing": outgoing})
+                 "outgoing": outgoing, "fa": FA})
 
 
 def generate_prior_samples(dwi,
@@ -267,10 +274,15 @@ def generate_samples(dwi_path,
     dwi_xyz2ijk = lambda r: dwi_affi.dot([r[0], r[1], r[2], 1])[:3]
     dwi = dwi_img.get_data()
 
+    fa_path = os.path.join(os.path.dirname(dwi_path), "tensor_FA.nii.gz")
+    fa_img = nib.load(fa_path)
+    fa_img = nib.funcs.as_closest_canonical(fa_img)
+    fa_data = fa_img.get_data()
+
     tracts = trk_file.tractogram # fiber coordinates in rasmm
     #===========================================================================
     if model == "conditional":
-        n_samples, samples = generate_conditional_samples(dwi, tracts,
+        n_samples, samples = generate_conditional_samples(fa_data, dwi, tracts,
             dwi_xyz2ijk, block_size, n_samples)
     elif model == "prior":
         n_samples, samples = generate_prior_samples(dwi, tracts, dwi_xyz2ijk,

@@ -12,6 +12,7 @@ class Samples(Sequence):
         """"""
         self.batch_size = config['batch_size']
         self.istraining = config['istraining']
+
         if isinstance(config['sample_path'], list) and \
                 not isdir(config['sample_path'][0]):
             if isinstance(self, RNNSamples):
@@ -34,6 +35,7 @@ class Samples(Sequence):
                 self.samples[key] = np.vstack(self.samples[key])
                 if self.samples[key].shape[0] == self.n_samples:
                     self.samples[key] = self.samples[key][perm]
+                    
         elif isinstance(config['sample_path'], list) and \
                 isdir(config['sample_path'][0]):
             self.samples = {}

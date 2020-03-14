@@ -225,7 +225,8 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
     model_inputs_1 = np.hstack([fixel_directions_1, d_1, dnorm_1])
     model_inputs_2 = np.hstack([fixel_directions_2, d_2, dnorm_2])
 
-    fixel_agreements = agreement_for(
+    fixel_agreements, fixel_kappa_1, fixel_kappa_2, fixel_mu_1, fixel_mu_2 = \
+    agreement_for(
         model,
         model_inputs_1,
         model_inputs_2,
@@ -290,6 +291,10 @@ def agreement(model_path, dwi_path_1, trk_path_1, dwi_path_2, trk_path_2,
         ),
         fixel_cnts_1=fixel_cnts_1,
         fixel_cnts_2=fixel_cnts_2,
+        fixel_mu_1=fixel_mu_1,
+        fixel_mu_2=fixel_mu_2,
+        fixel_kappa_1=fixel_kappa_1,
+        fixel_kappa_2=fixel_kappa_2,
         fixel_directions_1=fixel_directions_1,
         fixel_directions_2=fixel_directions_2,
         fixel_agreements=fixel_agreements,
@@ -314,15 +319,20 @@ def agreement_for(model, inputs1, inputs2, fixel_cnts_1, fixel_cnts_2):
     n_segments = len(inputs1)
 
     log_fvm = np.zeros(n_segments)
+    kappa1 = np.zeros(n_segments)
+    kappa2 = np.zeros(n_segments)
+
+    mu1 = np.zeros([n_segments, 3])
+    mu2 = np.zeros([n_segments, 3])
 
     chunk = 2**15  # 32768
     n_chunks = np.ceil(n_segments / chunk).astype(int)
     for c in range(n_chunks):
 
-        fvm_pred_1, _ = model(
+        fvm_pred_1, k1 = model(
             inputs1[c * chunk : (c + 1) * chunk])
 
-        fvm_pred_2, _ = model(
+        fvm_pred_2, k2 = model(
             inputs2[c * chunk : (c + 1) * chunk])
 
         log_fvm[c * chunk : (c + 1) * chunk] = fvm_log_agreement(
@@ -331,12 +341,18 @@ def agreement_for(model, inputs1, inputs2, fixel_cnts_1, fixel_cnts_2):
             fixel_cnts_1[c * chunk : (c + 1) * chunk],
             fixel_cnts_2[c * chunk : (c + 1) * chunk]
         )
+
+        kappa1[c * chunk : (c + 1) * chunk] = k1
+        kappa2[c * chunk : (c + 1) * chunk] = k2
+
+        mu1[c * chunk : (c + 1) * chunk] = fvm_pred_1.mean_direction.numpy()
+        mu2[c * chunk : (c + 1) * chunk] = fvm_pred_2.mean_direction.numpy()
         
     np.maximum(log_fvm, 0, out=log_fvm)
 
     log_fvm /= np.log(2)
 
-    return log_fvm
+    return log_fvm, kappa1, kappa2, mu1, mu2
 
 
 def fvm_log_agreement(fvm1, fvm2, cnts1, cnts2):
@@ -470,17 +486,13 @@ if __name__ == '__main__':
         config = load(args.config_path)
 
         gpu_queue = SimpleQueue()
-        for idx in get_gpus()[:5]:
+        for idx in get_gpus()[:4]:
             gpu_queue.put(str(idx))
 
         try:
             procs=[]
             for model_path, pair in config["pred_pairs"].items():
-                if any(t in model_path for t in ['0.0102', '0.0395', '0.0668', 
-                    '0.0089', '0.0133', '0.0199', '0.0229', '0.0343', '0.0886', 
-                    '0.0769', '0.0153', '0.1000', '0.0298', 
-                    '0.0068', '0.0264', '0.0513', '0.0026', '0.0446', '0.0117', 
-                    '0.0078', '0.0176', '0.0591']):
+                if any(t in model_path for t in ['0.0045', '0.1000']):
 
                     while gpu_queue.empty():
                         sleep(10)

@@ -22,7 +22,7 @@ def find_optimal_temperature(config):
     dwi_path_2 = config["inference"]["dwi_path"].format("retest")
 
     gpu_queue = SimpleQueue()
-    for idx in get_gpus()[:5]:
+    for idx in get_gpus():
         gpu_queue.put(str(idx))
 
     procs=[]
@@ -30,6 +30,8 @@ def find_optimal_temperature(config):
     predictions = pred_manager.dict()
     try:
         for mp in model_paths:
+
+            #if any(t in mp for t in []):
 
             model_config = config["inference"].copy()
             model_config["model_path"] = mp
@@ -67,6 +69,10 @@ def find_optimal_temperature(config):
         name="opT_{}.yml".format(timestamp()),
         out_dir=os.path.dirname(config["model_glob"])
     )
+    """
+    gpu_queue = SimpleQueue()
+    for idx in get_gpus()[:4]:
+        gpu_queue.put(str(idx))
 
     print("\nLaunching Agreement")
     try:
@@ -101,7 +107,7 @@ def find_optimal_temperature(config):
             p.join()
             while p.exitcode is None:
                 sleep(0.1)
-
+    """
 
 def parse(config, path, instance):
     config[path] = config[path].format("retest" if instance == 1 else "")
