@@ -4,7 +4,6 @@ import numpy as np
 
 from tensorflow.keras.utils import Sequence
 from tensorflow.keras.utils import to_categorical
-from dipy.io.gradients import read_bvals_bvecs
 
 
 class Samples(Sequence):
@@ -39,6 +38,7 @@ class Samples(Sequence):
         elif isinstance(config['sample_path'], list) and \
                 isdir(config['sample_path'][0]):
             self.samples = {}
+            self.n_samples = None
             self.sample_files = [join(subject, f)
                                  for subject in config['sample_path']
                                  for f in listdir(subject)
@@ -49,7 +49,6 @@ class Samples(Sequence):
             for sample in self.sample_files:
                 sample_i = np.load(sample, allow_pickle=True)
                 sample_i_shape = sample_i['sample_shape']
-                self.n_samples = sample_i["n_samples"]
                 self.sample_shapes.append(sample_i_shape)
 
         elif isdir(config['sample_path']):
@@ -92,7 +91,7 @@ class FvMSamples(Samples):
             self.inputs = None
             self.outgoing = None
 
-            # Cut the data to fir the batch size
+            # Cut the data to fit the batch size
             self.new_shapes = self.inputs = \
                 [(batch_shape[0] - (batch_shape[0] % self.batch_size), batch_shape[1])
                  if batch_shape[0] > self.batch_size else (batch_shape[0], batch_shape[1])
@@ -235,8 +234,8 @@ class RNNSamples(Samples):
         row_idx = current_batch_idx // (first_possible_input.shape[1])
         col_idx = current_batch_idx % first_possible_input.shape[1]
 
-        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, np.newaxis, ...]
-        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, np.newaxis, ...]
+        x_batch = first_possible_input[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, np.newaxis, col_idx, ...]
+        y_batch = first_possible_output[row_idx * self.batch_size:(row_idx + 1)*self.batch_size, col_idx, ...]
 
         return x_batch, {"fvm": y_batch, "kappa": np.zeros(len(y_batch))}
 
@@ -298,7 +297,7 @@ class ClassifierSamples(FvMSamples):
         super(ClassifierSamples, self).__init__(*args, **kwargs)
         print("Loading {} samples...".format("train" if self.istraining else "eval"))
         configs = args[0]
-        _, self.bvecs = read_bvals_bvecs(None, configs["bvec_path"])
+        self.bvecs = np.load(configs["bvec_path"])
 
     def __getitem__(self, idx):
         inputs, outgoing = super(ClassifierSamples, self).__getitem__(idx)

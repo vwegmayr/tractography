@@ -9,3 +9,5 @@ matplotlib==3.1.1
 tensorflow_probability==0.8.0
 pandas==0.25.1
 pathos==0.2.5
+dipy==1.0.0
+gitdb2==2.0.6

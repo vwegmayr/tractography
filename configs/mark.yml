@@ -1,6 +1,7 @@
 action: mark
 model_name: Entrack
 
-model_path: /local/home/vwegmayr/ijcv19/models/Entrack/conditional/2019-11-13/22:24:08/model_T=0.0023.h5
+model_path: models/model_T=0.0023.h5
 dwi_path: subjects/ismrm_basic/fod_norm_125.nii.gz
-trk_path: subjects/ismrm_basic/predicted_fibers/2019-11-14-09:36:59/2019-11-14-09:36:59_30mm200.trk
+trk_path: subjects/ismrm_basic/predicted_fibers/2019-11-14-09:36:59/2019-11-14-09:36:59.trk # This is the track of our best model: The one for which all original results were taken
+#trk_path: /local/home/vwegmayr/ijcv19/subjects/ismrm_basic/mitk_11_s=5_n=auto.trk  # This is track of MITK to make sure everything is working as it should

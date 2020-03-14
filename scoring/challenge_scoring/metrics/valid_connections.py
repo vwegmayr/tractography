@@ -155,4 +155,4 @@ def auto_extract_VCs(streamlines, ref_bundles):
         vb_info['overreach_norm'] = scores.get("ORn", 0)
         vb_info['f1_score'] = scores.get("F1", 0)
 
-    return VC_idx, found_vbs_info
+    return VC_idx, found_vbs_info, bundles_found

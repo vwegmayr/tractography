@@ -105,7 +105,7 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
     ib_pairs = {}
 
     rejected_streamlines = []
-
+    rejected_idx = []
     # Start by clustering all the remaining potentiel IC using QB.
 
     # Fix seed to always generate the same output
@@ -153,6 +153,7 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
                 val.append(c_idx)
         else:
             rejected_streamlines.append(candidate_streamlines[clusters[c]['indices'][0]])
+            rejected_idx.append(clusters[c]['indices'][0])
 
     if save_ibs or save_full_ic:
         save_invalid_connections(ib_pairs, candidate_streamlines,
@@ -162,4 +163,4 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
                                  save_full_ic=save_full_ic,
                                  save_ibs=save_ibs)
 
-    return rejected_streamlines, ic_counts, len(ib_pairs.keys())
+    return rejected_streamlines, ic_counts, len(ib_pairs.keys()), rejected_idx
