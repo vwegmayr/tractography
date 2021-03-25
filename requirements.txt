@@ -1,7 +1,7 @@
 numpy==1.17.2
 jupyter==1.0.0
 tensorflow==2.0.0
-pyyaml==5.1.2
+pyyaml==5.4
 nipy==0.4.2
 GPUtil==1.4.0
 scikit-learn==0.21.3
