@@ -1,4 +1,4 @@
-setuptools==2.2
+setuptools==65.5.1
 numpy==1.11.2
 scipy==0.18.1
 nibabel==2.1.0
